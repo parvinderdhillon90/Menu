@@ -35,19 +35,27 @@ export interface TemplateLayer {
 export interface PageTemplate {
   id: string;
   label: string;
-  imageUrl: string;
+  imageUrl: string; // base64 or object URL of uploaded design
   width: number;
   height: number;
 }
 
+export type VegIconStyle = "fssai" | "circle-outline" | "filled-circle" | "leaf" | "custom";
+export type NonVegIconStyle = "fssai" | "circle-outline" | "filled-circle" | "triangle" | "custom";
+export type IconPlacement = "before" | "after" | "newline";
+export type AllergenDisplayStyle = "text" | "emoji" | "symbol";
+
 export interface MenuConfig {
   restaurantName: string;
   menuType: "single" | "multi";
+  // single page
   singleTemplate?: PageTemplate;
+  // multi page
   frontTemplate?: PageTemplate;
   innerTemplate?: PageTemplate | "same";
-  innerTemplates?: PageTemplate[];
+  innerTemplates?: PageTemplate[]; // if different per section
   useCustomInnerTemplates: boolean;
+  // Styling
   fonts: {
     category: string;
     itemName: string;
@@ -61,9 +69,20 @@ export interface MenuConfig {
     price: string;
     background: string;
   };
-  iconPosition: { x: number; y: number };
+  // Icon display
   showIcons: boolean;
   iconSize: number;
+  vegIconStyle: VegIconStyle;
+  nonVegIconStyle: NonVegIconStyle;
+  vegIconCustom?: string;   // base64 image
+  nonVegIconCustom?: string; // base64 image
+  iconPlacement: IconPlacement;
+  // Legacy (kept for compatibility)
+  iconPosition: { x: number; y: number };
+  // Allergens
+  showAllergens: boolean;
+  allergenDisplayStyle: AllergenDisplayStyle;
+  // Other
   currency: string;
   showDescription: boolean;
   showSpiceLevel: boolean;

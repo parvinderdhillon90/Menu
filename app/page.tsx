@@ -32,9 +32,14 @@ const DEFAULT_CONFIG: MenuConfig = {
   iconPosition: { x: 0, y: 0 },
   showIcons: true,
   iconSize: 14,
+  vegIconStyle: "fssai",
+  nonVegIconStyle: "fssai",
+  iconPlacement: "before",
   currency: "£",
   showDescription: true,
   showSpiceLevel: true,
+  showAllergens: false,
+  allergenDisplayStyle: "emoji",
 };
 
 type Step = "setup" | "style" | "preview";
@@ -46,6 +51,7 @@ export default function Home() {
   const [singleTemplate, setSingleTemplate] = useState<PageTemplate | null>(null);
   const [frontTemplate, setFrontTemplate] = useState<PageTemplate | null>(null);
   const [innerTemplate, setInnerTemplate] = useState<PageTemplate | null>(null);
+  const [lastTemplate, setLastTemplate] = useState<PageTemplate | null>(null);
   const [customInnerTemplates, setCustomInnerTemplates] = useState<(PageTemplate | null)[]>([]);
 
   const patchConfig = useCallback((patch: Partial<MenuConfig>) => {
@@ -54,14 +60,17 @@ export default function Home() {
 
   const pages = useMemo(() => {
     if (sections.length === 0) return [];
+
     if (config.menuType === "single") {
       const tpl = singleTemplate;
       if (!tpl) return [];
       return [{ template: tpl, sections }];
     }
+
     const result: Array<{ template: PageTemplate; sections: MenuSection[] }> = [];
     let remaining = [...sections];
     let pageIdx = 0;
+
     while (remaining.length > 0) {
       const isFront = pageIdx === 0 && frontTemplate;
       const tpl = isFront
@@ -69,7 +78,9 @@ export default function Home() {
         : config.useCustomInnerTemplates && customInnerTemplates[pageIdx - 1]
         ? customInnerTemplates[pageIdx - 1]!
         : innerTemplate || frontTemplate;
+
       if (!tpl) break;
+
       let itemCount = 0;
       const pageSections: MenuSection[] = [];
       for (const sec of remaining) {
@@ -77,13 +88,21 @@ export default function Home() {
         pageSections.push(sec);
         itemCount += sec.items.length;
       }
+
       result.push({ template: tpl, sections: pageSections });
       remaining = remaining.slice(pageSections.length);
       pageIdx++;
+
       if (pageIdx > 20) break;
     }
+
+    // Apply last page template to the final page if set
+    if (lastTemplate && result.length > 1) {
+      result[result.length - 1] = { ...result[result.length - 1], template: lastTemplate };
+    }
+
     return result;
-  }, [config.menuType, config.useCustomInnerTemplates, sections, singleTemplate, frontTemplate, innerTemplate, customInnerTemplates]);
+  }, [config.menuType, config.useCustomInnerTemplates, sections, singleTemplate, frontTemplate, innerTemplate, customInnerTemplates, lastTemplate]);
 
   const canProceedToStyle =
     sections.length > 0 &&
@@ -134,6 +153,7 @@ export default function Home() {
           </nav>
         </div>
       </header>
+
       <main className="max-w-7xl mx-auto px-4 py-8">
         {step === "setup" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -142,6 +162,7 @@ export default function Home() {
                 <h2 className="text-xl font-bold text-gray-900 mb-1">Menu Setup</h2>
                 <p className="text-sm text-gray-500">Choose your menu type and upload design templates</p>
               </div>
+
               <div>
                 <label className="text-sm font-semibold text-gray-700 block mb-3">Menu Type</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -165,6 +186,7 @@ export default function Home() {
                   ))}
                 </div>
               </div>
+
               {config.menuType === "single" ? (
                 <div>
                   <label className="text-sm font-semibold text-gray-700 block mb-3">Page Template</label>
@@ -188,6 +210,7 @@ export default function Home() {
                       hint="Cover page design"
                     />
                   </div>
+
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <label className="text-sm font-semibold text-gray-700">Inner Pages</label>
@@ -204,6 +227,7 @@ export default function Home() {
                         <span className="text-xs text-gray-600">Different design per page</span>
                       </label>
                     </div>
+
                     {!config.useCustomInnerTemplates ? (
                       <TemplateUpload
                         label="Inner Page Template"
@@ -251,15 +275,32 @@ export default function Home() {
                       </div>
                     )}
                   </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700 block mb-3">
+                      Last / Back Page
+                      <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
+                    </label>
+                    <TemplateUpload
+                      label="Last Page Template"
+                      template={lastTemplate}
+                      onUpload={setLastTemplate}
+                      onRemove={() => setLastTemplate(null)}
+                      hint="Back cover or final page (will replace the last generated page)"
+                    />
+                  </div>
                 </div>
               )}
             </div>
+
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 mb-1">Menu Data</h2>
                 <p className="text-sm text-gray-500">Upload your menu items from Excel</p>
               </div>
+
               <ExcelUpload sections={sections} onParsed={setSections} />
+
               {sections.length > 0 && (
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
@@ -296,6 +337,7 @@ export default function Home() {
                   </div>
                 </div>
               )}
+
               <div className="flex justify-end">
                 <Button onClick={() => setStep("style")} disabled={!canProceedToStyle}>
                   Continue to Styling
@@ -305,6 +347,7 @@ export default function Home() {
             </div>
           </div>
         )}
+
         {step === "style" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-1 space-y-4">
@@ -323,6 +366,7 @@ export default function Home() {
                 </Button>
               </div>
             </div>
+
             <div className="lg:col-span-2">
               <div className="bg-white rounded-xl border border-gray-200 p-5">
                 <h3 className="text-sm font-semibold text-gray-700 mb-4">Live Preview</h3>
@@ -337,6 +381,7 @@ export default function Home() {
             </div>
           </div>
         )}
+
         {step === "preview" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -346,13 +391,18 @@ export default function Home() {
                   {pages.length} page{pages.length !== 1 ? "s" : ""} · Review and export in high resolution
                 </p>
               </div>
-              <Button variant="outline" onClick={() => setStep("style")}>Back to Styling</Button>
+              <Button variant="outline" onClick={() => setStep("style")}>
+                Back to Styling
+              </Button>
             </div>
+
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               {pages.length > 0 ? (
                 <MenuPreview pages={pages} config={config} />
               ) : (
-                <div className="h-64 flex items-center justify-center text-gray-400">No pages to preview</div>
+                <div className="h-64 flex items-center justify-center text-gray-400">
+                  No pages to preview
+                </div>
               )}
             </div>
           </div>
