@@ -94,5 +94,18 @@ export function generateExcelTemplate(): void {
     { wch: 22 }, { wch: 28 }, { wch: 18 }, { wch: 22 }, { wch: 20 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, "Menu");
-  XLSX.writeFile(wb, "menu-template.xlsx");
+
+  // Use Blob + anchor for iOS Safari compatibility (XLSX.writeFile can silently fail on iPad)
+  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([wbout], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "menu-template.xlsx";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 }

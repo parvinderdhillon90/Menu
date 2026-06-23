@@ -172,9 +172,11 @@ export default function Home() {
                   ].map((opt) => (
                     <button
                       key={opt.value}
+                      type="button"
                       onClick={() => patchConfig({ menuType: opt.value as "single" | "multi" })}
+                      style={{ touchAction: "manipulation" }}
                       className={cn(
-                        "p-4 rounded-xl border-2 text-left transition-all",
+                        "p-4 rounded-xl border-2 text-left transition-all cursor-pointer",
                         config.menuType === opt.value
                           ? "border-indigo-500 bg-indigo-50"
                           : "border-gray-200 hover:border-indigo-300"
