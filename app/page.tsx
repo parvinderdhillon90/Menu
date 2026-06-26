@@ -48,6 +48,8 @@ const DEFAULT_CONFIG: MenuConfig = {
   showSpiceLevel: true,
   showAllergens: false,
   allergenDisplayStyle: "emoji",
+  spacingAfterHeading: 8,
+  itemSpacing: 6,
 };
 
 type Step = "setup" | "style" | "preview";

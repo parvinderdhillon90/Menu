@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useCallback } from "react";
 import { Upload } from "lucide-react";
 import { MenuConfig, VegIconStyle, NonVegIconStyle, IconPlacement, AllergenDisplayStyle } from "@/types/menu";
 import { Label } from "@/components/ui/label";
@@ -131,6 +131,32 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
 
   const vegIconFileRef = useRef<HTMLInputElement>(null);
   const nonVegIconFileRef = useRef<HTMLInputElement>(null);
+  const allergenIconFileRef = useRef<HTMLInputElement>(null);
+
+  const handleAllergenIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      onChange({ allergenIconCustom: dataUrl, allergenDisplayStyle: "custom" });
+    } catch { /* ignore */ }
+    e.target.value = "";
+  };
+
+  // 2D icon position drag zone
+  const iconDragRef = useRef<HTMLDivElement>(null);
+  const isDraggingIcon = useRef(false);
+
+  const computeIconOffset = useCallback((clientX: number, clientY: number) => {
+    const box = iconDragRef.current;
+    if (!box) return;
+    const rect = box.getBoundingClientRect();
+    const rx = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const ry = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+    const x = Math.round((rx - 0.5) * 60); // ±30 px
+    const y = Math.round((ry - 0.5) * 40); // ±20 px
+    onChange({ iconPosition: { x, y } });
+  }, [onChange]);
 
   const handleVegIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -418,7 +444,7 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
 
               {/* Icon placement */}
               <div>
-                <Label className="text-xs mb-2 block text-gray-600">Icon Position</Label>
+                <Label className="text-xs mb-2 block text-gray-600">Icon Placement</Label>
                 <div className="flex gap-2">
                   {[
                     { value: "before" as IconPlacement, label: "Before name", sub: "🔲 Dish name" },
@@ -427,6 +453,7 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
                   ].map((opt) => (
                     <button
                       key={opt.value}
+                      type="button"
                       onClick={() => onChange({ iconPlacement: opt.value })}
                       className={cn(
                         "flex-1 py-2 px-1.5 rounded-lg border-2 transition-all text-center",
@@ -440,6 +467,62 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* 2D icon position fine-tune drag zone */}
+              <div>
+                <Label className="text-xs mb-2 block text-gray-600">
+                  Icon Fine Position
+                  <span className="ml-1 text-gray-400 font-normal">
+                    (drag dot to nudge · x:{config.iconPosition?.x ?? 0} y:{config.iconPosition?.y ?? 0})
+                  </span>
+                </Label>
+                <div
+                  ref={iconDragRef}
+                  className="relative w-full h-20 bg-gray-100 rounded-lg border border-gray-200 cursor-crosshair select-none overflow-hidden"
+                  onMouseDown={(e) => {
+                    isDraggingIcon.current = true;
+                    computeIconOffset(e.clientX, e.clientY);
+                  }}
+                  onMouseMove={(e) => { if (isDraggingIcon.current) computeIconOffset(e.clientX, e.clientY); }}
+                  onMouseUp={() => { isDraggingIcon.current = false; }}
+                  onMouseLeave={() => { isDraggingIcon.current = false; }}
+                  onTouchStart={(e) => {
+                    isDraggingIcon.current = true;
+                    computeIconOffset(e.touches[0].clientX, e.touches[0].clientY);
+                  }}
+                  onTouchMove={(e) => {
+                    if (isDraggingIcon.current) {
+                      e.preventDefault();
+                      computeIconOffset(e.touches[0].clientX, e.touches[0].clientY);
+                    }
+                  }}
+                  onTouchEnd={() => { isDraggingIcon.current = false; }}
+                >
+                  {/* crosshair guides */}
+                  <div className="absolute inset-x-0 top-1/2 h-px bg-gray-300 pointer-events-none" />
+                  <div className="absolute inset-y-0 left-1/2 w-px bg-gray-300 pointer-events-none" />
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none select-none">← left</span>
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none select-none">right →</span>
+                  {/* draggable dot */}
+                  <div
+                    className="absolute w-5 h-5 bg-indigo-500 rounded-full shadow-md flex items-center justify-center pointer-events-none"
+                    style={{
+                      left: `calc(50% + ${(config.iconPosition?.x ?? 0) / 30 * 50}%)`,
+                      top: `calc(50% + ${(config.iconPosition?.y ?? 0) / 20 * 50}%)`,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                  >
+                    <span className="text-white text-[8px] font-bold">✦</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onChange({ iconPosition: { x: 0, y: 0 } })}
+                  className="mt-1 text-xs text-gray-400 hover:text-indigo-600 transition-colors"
+                >
+                  Reset position
+                </button>
               </div>
             </>
           )}
@@ -460,34 +543,93 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
             <span className="text-sm text-gray-700">Show allergen information</span>
           </label>
           {config.showAllergens && (
-            <div>
-              <Label className="text-xs mb-2 block text-gray-600">Display Style</Label>
-              <div className="flex gap-2">
-                {[
-                  { value: "emoji" as AllergenDisplayStyle, label: "Emoji", example: "🌾 🥛 🥚" },
-                  { value: "text" as AllergenDisplayStyle, label: "Text", example: "Contains: gluten" },
-                  { value: "symbol" as AllergenDisplayStyle, label: "Badges", example: "G  D  E" },
-                ].map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => onChange({ allergenDisplayStyle: opt.value })}
-                    className={cn(
-                      "flex-1 py-2 px-2 rounded-lg border-2 transition-all text-center",
-                      config.allergenDisplayStyle === opt.value
-                        ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                        : "border-gray-200 hover:border-indigo-300 text-gray-600"
-                    )}
-                  >
-                    <p className="text-xs font-medium">{opt.label}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{opt.example}</p>
-                  </button>
-                ))}
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs mb-2 block text-gray-600">Display Style</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: "emoji" as AllergenDisplayStyle, label: "Emoji (inline)", example: "🌾 🥛 🥚" },
+                    { value: "symbol" as AllergenDisplayStyle, label: "Badges (inline)", example: "G  D  E" },
+                    { value: "text" as AllergenDisplayStyle, label: "Text (below item)", example: "Contains: gluten" },
+                    { value: "custom" as AllergenDisplayStyle, label: "Custom Icon", example: "Upload below ↓" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => onChange({ allergenDisplayStyle: opt.value })}
+                      className={cn(
+                        "py-2 px-2 rounded-lg border-2 transition-all text-center",
+                        config.allergenDisplayStyle === opt.value
+                          ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                          : "border-gray-200 hover:border-indigo-300 text-gray-600"
+                      )}
+                    >
+                      <p className="text-xs font-medium">{opt.label}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{opt.example}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <p className="text-xs text-gray-400 mt-2">
-                Add allergens to the &ldquo;Allergens&rdquo; column in Excel (e.g. &ldquo;gluten, dairy, nuts&rdquo;)
+
+              {/* Custom allergen icon upload */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => allergenIconFileRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-dashed border-gray-300 hover:border-indigo-400 hover:text-indigo-600 text-gray-600 transition-colors"
+                >
+                  <Upload size={12} />
+                  {config.allergenIconCustom ? "Replace allergen icon" : "Upload allergen icon"}
+                </button>
+                {config.allergenIconCustom && (
+                  <img src={config.allergenIconCustom} alt="custom allergen icon" className="w-8 h-8 object-contain rounded border border-gray-200" />
+                )}
+                <input
+                  ref={allergenIconFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAllergenIconUpload}
+                />
+              </div>
+
+              <p className="text-xs text-gray-400">
+                Emoji / Badge / Custom icon appear inline (same row as price). Text appears below the item name.
+                Add allergens to the &ldquo;Allergens&rdquo; column in Excel (e.g. &ldquo;gluten, dairy&rdquo;).
               </p>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Spacing */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-800 mb-3">Spacing</h3>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs w-36 shrink-0">Space after heading</Label>
+            <input
+              type="range"
+              min={0}
+              max={60}
+              value={config.spacingAfterHeading ?? 8}
+              onChange={(e) => onChange({ spacingAfterHeading: Number(e.target.value) })}
+              className="flex-1"
+            />
+            <span className="text-xs text-gray-500 w-8 text-right">{config.spacingAfterHeading ?? 8}px</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs w-36 shrink-0">Space between items</Label>
+            <input
+              type="range"
+              min={0}
+              max={40}
+              value={config.itemSpacing ?? 6}
+              onChange={(e) => onChange({ itemSpacing: Number(e.target.value) })}
+              className="flex-1"
+            />
+            <span className="text-xs text-gray-500 w-8 text-right">{config.itemSpacing ?? 6}px</span>
+          </div>
         </div>
       </div>
 

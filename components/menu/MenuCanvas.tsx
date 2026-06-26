@@ -211,33 +211,32 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const vegCustomImgRef = useRef<HTMLImageElement | null>(null);
   const nonVegCustomImgRef = useRef<HTMLImageElement | null>(null);
+  const allergenCustomImgRef = useRef<HTMLImageElement | null>(null);
   const [customImagesVersion, setCustomImagesVersion] = useState(0);
 
   useEffect(() => {
     if (config.vegIconStyle === "custom" && config.vegIconCustom) {
       const img = new Image();
-      img.onload = () => {
-        vegCustomImgRef.current = img;
-        setCustomImagesVersion((v) => v + 1);
-      };
+      img.onload = () => { vegCustomImgRef.current = img; setCustomImagesVersion((v) => v + 1); };
       img.src = config.vegIconCustom;
-    } else {
-      vegCustomImgRef.current = null;
-    }
+    } else { vegCustomImgRef.current = null; }
   }, [config.vegIconStyle, config.vegIconCustom]);
 
   useEffect(() => {
     if (config.nonVegIconStyle === "custom" && config.nonVegIconCustom) {
       const img = new Image();
-      img.onload = () => {
-        nonVegCustomImgRef.current = img;
-        setCustomImagesVersion((v) => v + 1);
-      };
+      img.onload = () => { nonVegCustomImgRef.current = img; setCustomImagesVersion((v) => v + 1); };
       img.src = config.nonVegIconCustom;
-    } else {
-      nonVegCustomImgRef.current = null;
-    }
+    } else { nonVegCustomImgRef.current = null; }
   }, [config.nonVegIconStyle, config.nonVegIconCustom]);
+
+  useEffect(() => {
+    if (config.allergenDisplayStyle === "custom" && config.allergenIconCustom) {
+      const img = new Image();
+      img.onload = () => { allergenCustomImgRef.current = img; setCustomImagesVersion((v) => v + 1); };
+      img.src = config.allergenIconCustom;
+    } else { allergenCustomImgRef.current = null; }
+  }, [config.allergenDisplayStyle, config.allergenIconCustom]);
 
   const render = useCallback(
     (canvas: HTMLCanvasElement, renderScale: number) => {
@@ -314,9 +313,20 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
     const contentW = W - padX * 2;
     const colWidth = useTwoCols ? (contentW - colGap) / 2 : contentW;
 
+    // Icon position offset from config (applied in canvas units relative to item row)
+    const iconOffsetX = (config.iconPosition?.x ?? 0) * rs;
+    const iconOffsetY = (config.iconPosition?.y ?? 0) * rs;
+
+    // Allergen inline area width (reserved on the right for emoji/symbol/custom icons)
+    const allergenStyle = config.allergenDisplayStyle || "text";
+    const inlineAllergen = config.showAllergens && allergenStyle !== "text";
+    const allergenAreaW = inlineAllergen ? nameFontSize * 3.5 : 0;
+
     const drawColumn = (secs: MenuSection[], startX: number, maxWidth: number) => {
       let y = padY;
       const placement = config.iconPlacement || "before";
+      const extraAfterHeading = (config.spacingAfterHeading ?? 8) * rs;
+      const extraBetweenItems = (config.itemSpacing ?? 6) * rs;
 
       for (const section of secs) {
         // Category title
@@ -329,7 +339,7 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
         y += catFontSize * 0.35;
         const titleW = ctx.measureText(titleText).width;
         ctx.fillRect(startX, y, Math.min(titleW, maxWidth), 2 * rs);
-        y += catFontSize * 0.85;
+        y += catFontSize * 0.85 + extraAfterHeading;
         ctx.restore();
 
         for (const item of section.items) {
@@ -340,14 +350,18 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
             ? (config.iconSize + 4) * rs
             : 0;
           const textX = startX + iconGap;
-          const nameMaxW = maxWidth - iconGap - priceFontSize * 4;
+          // Reserve right space for price + inline allergen indicator
+          const nameMaxW = maxWidth - iconGap - priceFontSize * 4 - allergenAreaW;
 
           const isVeg = item.type === "veg" || item.type === "vegan";
           const iconStyle = isVeg ? config.vegIconStyle : config.nonVegIconStyle;
           const customImg = isVeg ? vegCustomImgRef.current : nonVegCustomImgRef.current;
 
+          // Draw veg/non-veg icon with position offset applied
           if (config.showIcons && item.type && placement === "before") {
-            drawTypeIcon(ctx, item.type, startX, y - iconSize * 0.8, iconSize, iconStyle, customImg);
+            drawTypeIcon(ctx, item.type,
+              startX + iconOffsetX, y - iconSize * 0.8 + iconOffsetY,
+              iconSize, iconStyle, customImg);
           }
 
           ctx.save();
@@ -358,26 +372,72 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
           ctx.fillText(nameText, textX, y);
 
           const priceStr = formatPrice(item.price, config.currency);
+          // Price sits left of the allergen area
+          const priceRightEdge = startX + maxWidth - allergenAreaW;
           if (priceStr) {
             ctx.font = `bold ${priceFontSize}px ${config.fonts.price}`;
             ctx.fillStyle = config.colors.price;
             ctx.textAlign = "right";
-            ctx.fillText(priceStr, startX + maxWidth, y);
+            ctx.fillText(priceStr, priceRightEdge, y);
           }
           ctx.restore();
 
+          // Veg/non-veg icon: after name placement (with offset)
           if (config.showIcons && item.type && placement === "after") {
             ctx.save();
             ctx.font = `bold ${nameFontSize}px ${config.fonts.itemName}`;
             const nameW = ctx.measureText(nameText).width;
             ctx.restore();
-            drawTypeIcon(ctx, item.type, textX + nameW + 3 * rs, y - iconSize * 0.8, iconSize, iconStyle, customImg);
+            drawTypeIcon(ctx, item.type,
+              textX + nameW + 3 * rs + iconOffsetX, y - iconSize * 0.8 + iconOffsetY,
+              iconSize, iconStyle, customImg);
+          }
+
+          // Inline allergen indicator on the same row (emoji / symbol / custom icon)
+          if (inlineAllergen && item.allergens) {
+            const allergenX = startX + maxWidth; // right-align to full col edge
+            const allergenY = y;
+            if (allergenStyle === "custom" && allergenCustomImgRef.current) {
+              const aSz = nameFontSize * 0.95;
+              ctx.drawImage(allergenCustomImgRef.current,
+                allergenX - aSz, allergenY - aSz * 0.85, aSz, aSz);
+            } else if (allergenStyle === "emoji") {
+              const allergens = item.allergens.split(/[,;]/).map((a) => a.trim().toLowerCase()).filter(Boolean);
+              const emojis = allergens.slice(0, 3).map((a) => ALLERGEN_EMOJI[a] ?? "⚠️").join(" ");
+              ctx.save();
+              ctx.font = `${nameFontSize * 0.75}px serif`;
+              ctx.textAlign = "right";
+              ctx.textBaseline = "alphabetic";
+              ctx.fillText(emojis, allergenX, allergenY);
+              ctx.restore();
+            } else if (allergenStyle === "symbol") {
+              const allergens = item.allergens.split(/[,;]/).map((a) => a.trim().toLowerCase()).filter(Boolean);
+              const sz = nameFontSize * 0.75;
+              let ax = allergenX - sz;
+              for (const a of allergens.slice(0, 3).reverse()) {
+                ctx.fillStyle = "#e65100";
+                ctx.beginPath();
+                ctx.arc(ax - sz / 2, allergenY - sz * 0.6, sz / 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#fff";
+                ctx.font = `bold ${sz * 0.62}px sans-serif`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(a[0].toUpperCase(), ax - sz / 2, allergenY - sz * 0.6);
+                ax -= sz + 2 * rs;
+              }
+              ctx.textAlign = "left";
+              ctx.textBaseline = "alphabetic";
+            }
           }
 
           y += lineH;
 
+          // Veg/non-veg icon: newline placement (with offset)
           if (config.showIcons && item.type && placement === "newline") {
-            drawTypeIcon(ctx, item.type, textX, y - iconSize * 0.8, iconSize, iconStyle, customImg);
+            drawTypeIcon(ctx, item.type,
+              textX + iconOffsetX, y - iconSize * 0.8 + iconOffsetY,
+              iconSize, iconStyle, customImg);
             y += iconSize + 2 * rs;
           }
 
@@ -386,7 +446,7 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
             ctx.font = `${descFontSize}px ${config.fonts.description}`;
             ctx.fillStyle = config.colors.description;
             ctx.textAlign = "left";
-            const descLines = wrapText(ctx, item.description, maxWidth - iconGap, descFontSize);
+            const descLines = wrapText(ctx, item.description, maxWidth - iconGap - allergenAreaW, descFontSize);
             for (const line of descLines.slice(0, 2)) {
               ctx.fillText(line, textX, y);
               y += descFontSize * 1.5;
@@ -394,9 +454,10 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
             ctx.restore();
           }
 
-          if (config.showAllergens && item.allergens) {
-            drawAllergens(ctx, item.allergens, textX, y, maxWidth - iconGap, rs, config.allergenDisplayStyle || "text");
-            y += lineH * 0.9;
+          // Text-mode allergens shown below item (only when style is "text")
+          if (config.showAllergens && item.allergens && allergenStyle === "text") {
+            drawAllergens(ctx, item.allergens, textX, y, maxWidth - iconGap, rs, "text");
+            y += descFontSize * 1.5;
           }
 
           if (config.showSpiceLevel && item.spiceLevel) {
@@ -404,7 +465,7 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
             y += descFontSize * 1.4;
           }
 
-          y += nameFontSize * 0.5;
+          y += nameFontSize * 0.5 + extraBetweenItems;
         }
 
         y += catFontSize;
