@@ -43,6 +43,8 @@ const DEFAULT_CONFIG: MenuConfig = {
   },
   layoutColumns: "auto",
   contentPadding: 6,
+  contentTopOffset: 0,
+  contentLeftOffset: 0,
   currency: "£",
   showDescription: true,
   showSpiceLevel: true,
@@ -101,6 +103,7 @@ export default function Home() {
       let itemCount = 0;
       const pageSections: MenuSection[] = [];
       for (const sec of remaining) {
+        if (pageSections.length > 0 && sec.forceNewPage) break; // user-requested page break
         if (itemCount + sec.items.length > ITEMS_PER_PAGE && pageSections.length > 0) break;
         pageSections.push(sec);
         itemCount += sec.items.length;
@@ -328,7 +331,25 @@ export default function Home() {
                   <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
                     {sections.map((sec, i) => (
                       <div key={`${i}-${sec.title}`} className="px-4 py-3">
-                        <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-2">{sec.title}</p>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">{sec.title}</p>
+                          {config.menuType === "multi" && i > 0 && (
+                            <label className="flex items-center gap-1 cursor-pointer" title="Force this section to start on a new page">
+                              <input
+                                type="checkbox"
+                                checked={!!sec.forceNewPage}
+                                onChange={(e) => {
+                                  const updated = sections.map((s, idx) =>
+                                    idx === i ? { ...s, forceNewPage: e.target.checked } : s
+                                  );
+                                  setSections(updated);
+                                }}
+                                className="w-3 h-3 text-indigo-600 rounded"
+                              />
+                              <span className="text-[10px] text-gray-500">New page</span>
+                            </label>
+                          )}
+                        </div>
                         <div className="space-y-1.5">
                           {sec.items.map((item, i) => (
                             <div key={i} className="flex items-start justify-between gap-2">
@@ -368,20 +389,21 @@ export default function Home() {
         )}
 
         {step === "style" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            {/* Left — scrollable style controls */}
-            <div className="lg:col-span-1 flex flex-col gap-4">
-              <div>
+          /* Fixed-height grid — each column scrolls independently */
+          <div
+            className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+            style={{ height: "calc(100vh - 7rem)" }}
+          >
+            {/* Left — style controls with internal scroll */}
+            <div className="lg:col-span-1 flex flex-col gap-4 min-h-0 overflow-hidden">
+              <div className="shrink-0">
                 <h2 className="text-xl font-bold text-gray-900 mb-1">Styling</h2>
                 <p className="text-sm text-gray-500">Customize colors, fonts and layout</p>
               </div>
-              <div
-                className="bg-white rounded-xl border border-gray-200 p-5 overflow-y-auto"
-                style={{ maxHeight: "calc(100vh - 13rem)" }}
-              >
+              <div className="flex-1 min-h-0 bg-white rounded-xl border border-gray-200 p-5 overflow-y-auto">
                 <StylePanel config={config} onChange={patchConfig} />
               </div>
-              <div className="flex justify-between">
+              <div className="shrink-0 flex justify-between">
                 <Button variant="outline" onClick={() => setStep("setup")}>Back</Button>
                 <Button onClick={() => setStep("preview")}>
                   Preview Menu
@@ -390,21 +412,16 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Right — sticky preview */}
-            <div
-              className="lg:col-span-2 sticky"
-              style={{ top: "5rem" }}
-            >
-              <div className="bg-white rounded-xl border border-gray-200 p-5 overflow-y-auto" style={{ maxHeight: "calc(100vh - 7rem)" }}>
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">Live Preview</h3>
-                {pages.length > 0 ? (
-                  <MenuPreview pages={pages} config={config} />
-                ) : (
-                  <div className="h-64 flex items-center justify-center text-gray-400 text-sm">
-                    Upload a template and Excel data to see preview
-                  </div>
-                )}
-              </div>
+            {/* Right — preview with its own internal scroll, never moves */}
+            <div className="lg:col-span-2 min-h-0 bg-white rounded-xl border border-gray-200 p-5 overflow-y-auto">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4">Live Preview</h3>
+              {pages.length > 0 ? (
+                <MenuPreview pages={pages} config={config} />
+              ) : (
+                <div className="h-64 flex items-center justify-center text-gray-400 text-sm">
+                  Upload a template and Excel data to see preview
+                </div>
+              )}
             </div>
           </div>
         )}

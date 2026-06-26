@@ -633,6 +633,40 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
         </div>
       </div>
 
+      {/* Content Position */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-800 mb-1">Content Position</h3>
+        <p className="text-xs text-gray-400 mb-3">
+          Push the text block away from template logos or decorative borders
+        </p>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs w-24 shrink-0">Top Offset</Label>
+            <input
+              type="range"
+              min={0}
+              max={50}
+              value={config.contentTopOffset ?? 0}
+              onChange={(e) => onChange({ contentTopOffset: Number(e.target.value) })}
+              className="flex-1"
+            />
+            <span className="text-xs text-gray-500 w-8 text-right">{config.contentTopOffset ?? 0}%</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs w-24 shrink-0">Left Offset</Label>
+            <input
+              type="range"
+              min={0}
+              max={40}
+              value={config.contentLeftOffset ?? 0}
+              onChange={(e) => onChange({ contentLeftOffset: Number(e.target.value) })}
+              className="flex-1"
+            />
+            <span className="text-xs text-gray-500 w-8 text-right">{config.contentLeftOffset ?? 0}%</span>
+          </div>
+        </div>
+      </div>
+
       {/* Spacing */}
       <div>
         <h3 className="text-sm font-semibold text-gray-800 mb-3">Spacing</h3>

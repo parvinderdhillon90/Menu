@@ -277,8 +277,8 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
     rs: number
   ) {
     const padPct = (config.contentPadding ?? 6) / 100;
-    const padX = W * padPct;
-    const padY = H * padPct;
+    const padX = W * padPct + W * (config.contentLeftOffset ?? 0) / 100;
+    const padY = H * padPct + H * (config.contentTopOffset ?? 0) / 100;
 
     const catFontSize  = (config.fontSizes?.category    ?? 18) * rs;
     const nameFontSize = (config.fontSizes?.itemName    ?? 13) * rs;

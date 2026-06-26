@@ -13,6 +13,7 @@ export interface MenuItem {
 export interface MenuSection {
   title: string;
   items: MenuItem[];
+  forceNewPage?: boolean; // start this section on a fresh page
 }
 
 export interface TemplateLayer {
@@ -98,6 +99,8 @@ export interface MenuConfig {
   // Layout
   layoutColumns: "auto" | "1" | "2";
   contentPadding: number; // % of page dimension applied as margin on all sides
+  contentTopOffset: number;  // extra % pushed down from top (to clear template header art)
+  contentLeftOffset: number; // extra % pushed in from left
   // Other
   currency: string;
   showDescription: boolean;
