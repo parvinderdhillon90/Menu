@@ -68,16 +68,21 @@ export default function Home() {
     }
 
     const result: Array<{ template: PageTemplate; sections: MenuSection[] }> = [];
+
+    // Front page is a cover — it gets NO menu items
+    if (frontTemplate) {
+      result.push({ template: frontTemplate, sections: [] });
+    }
+
+    // Distribute all menu items across inner pages
     let remaining = [...sections];
-    let pageIdx = 0;
+    let innerIdx = 0;
 
     while (remaining.length > 0) {
-      const isFront = pageIdx === 0 && frontTemplate;
-      const tpl = isFront
-        ? frontTemplate!
-        : config.useCustomInnerTemplates && customInnerTemplates[pageIdx - 1]
-        ? customInnerTemplates[pageIdx - 1]!
-        : innerTemplate || frontTemplate;
+      const tpl =
+        config.useCustomInnerTemplates && customInnerTemplates[innerIdx]
+          ? customInnerTemplates[innerIdx]!
+          : innerTemplate || frontTemplate;
 
       if (!tpl) break;
 
@@ -91,14 +96,14 @@ export default function Home() {
 
       result.push({ template: tpl, sections: pageSections });
       remaining = remaining.slice(pageSections.length);
-      pageIdx++;
+      innerIdx++;
 
-      if (pageIdx > 20) break;
+      if (innerIdx > 20) break;
     }
 
-    // Apply last page template to the final page if set
-    if (lastTemplate && result.length > 1) {
-      result[result.length - 1] = { ...result[result.length - 1], template: lastTemplate };
+    // Last/back page is appended at the end with NO menu items (it's a back cover)
+    if (lastTemplate) {
+      result.push({ template: lastTemplate, sections: [] });
     }
 
     return result;
