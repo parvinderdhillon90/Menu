@@ -114,6 +114,58 @@ const NON_VEG_ICON_OPTIONS: { value: NonVegIconStyle; label: string; preview: Re
   },
 ];
 
+// Slider + typeable number input (Photoshop-style)
+function SliderInput({
+  label,
+  value,
+  min,
+  max,
+  unit = "px",
+  labelWidth = "w-24",
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  unit?: string;
+  labelWidth?: string;
+  onChange: (v: number) => void;
+}) {
+  const clamp = (v: number) => Math.min(max, Math.max(min, v));
+  return (
+    <div className="flex items-center gap-2">
+      <Label className={`text-xs ${labelWidth} shrink-0`}>{label}</Label>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(clamp(Number(e.target.value)))}
+        className="flex-1"
+      />
+      <div className="flex items-center border border-gray-200 rounded-md bg-white overflow-hidden">
+        <input
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            if (!isNaN(v)) onChange(clamp(v));
+          }}
+          onBlur={(e) => {
+            const v = parseInt(e.target.value, 10);
+            onChange(isNaN(v) ? min : clamp(v));
+          }}
+          className="w-10 text-xs text-center p-1 bg-transparent outline-none border-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        <span className="text-xs text-gray-400 pr-1.5 select-none">{unit}</span>
+      </div>
+    </div>
+  );
+}
+
 interface StylePanelProps {
   config: MenuConfig;
   onChange: (patch: Partial<MenuConfig>) => void;
@@ -262,18 +314,15 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
           ] as const).map(({ label, key, min, max }) => {
             const sizes = config.fontSizes ?? { category: 18, itemName: 13, description: 10, price: 13 };
             return (
-              <div key={key} className="flex items-center gap-2">
-                <Label className="text-xs w-24 shrink-0">{label}</Label>
-                <input
-                  type="range"
-                  min={min}
-                  max={max}
-                  value={sizes[key]}
-                  onChange={(e) => patchFontSizes({ [key]: Number(e.target.value) })}
-                  className="flex-1"
-                />
-                <span className="text-xs text-gray-500 w-8 text-right">{sizes[key]}px</span>
-              </div>
+              <SliderInput
+                key={key}
+                label={label}
+                value={sizes[key]}
+                min={min}
+                max={max}
+                unit="px"
+                onChange={(v) => patchFontSizes({ [key]: v })}
+              />
             );
           })}
         </div>
@@ -308,18 +357,14 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-xs w-24 shrink-0">Content Margin</Label>
-            <input
-              type="range"
-              min={2}
-              max={20}
-              value={config.contentPadding ?? 6}
-              onChange={(e) => onChange({ contentPadding: Number(e.target.value) })}
-              className="flex-1"
-            />
-            <span className="text-xs text-gray-500 w-8 text-right">{config.contentPadding ?? 6}%</span>
-          </div>
+          <SliderInput
+            label="Content Margin"
+            value={config.contentPadding ?? 6}
+            min={2}
+            max={20}
+            unit="%"
+            onChange={(v) => onChange({ contentPadding: v })}
+          />
           <p className="text-xs text-gray-400">Increase margin if text overlaps template decorations</p>
         </div>
       </div>
@@ -341,18 +386,15 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
           {config.showIcons && (
             <>
               {/* Icon size */}
-              <div className="flex items-center gap-2">
-                <Label className="text-xs w-20 shrink-0">Icon Size</Label>
-                <input
-                  type="range"
-                  min={8}
-                  max={24}
-                  value={config.iconSize}
-                  onChange={(e) => onChange({ iconSize: Number(e.target.value) })}
-                  className="flex-1"
-                />
-                <span className="text-xs text-gray-500 w-10">{config.iconSize}px</span>
-              </div>
+              <SliderInput
+                label="Icon Size"
+                value={config.iconSize}
+                min={8}
+                max={24}
+                unit="px"
+                labelWidth="w-20"
+                onChange={(v) => onChange({ iconSize: v })}
+              />
 
               {/* Veg icon style */}
               <div>
@@ -599,18 +641,7 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
               </div>
 
               {/* Allergen size */}
-              <div className="flex items-center gap-2">
-                <Label className="text-xs w-24 shrink-0">Icon / Text Size</Label>
-                <input
-                  type="range"
-                  min={6}
-                  max={22}
-                  value={config.allergenSize ?? 9}
-                  onChange={(e) => onChange({ allergenSize: Number(e.target.value) })}
-                  className="flex-1"
-                />
-                <span className="text-xs text-gray-500 w-8 text-right">{config.allergenSize ?? 9}px</span>
-              </div>
+              <SliderInput label="Icon / Text Size" value={config.allergenSize ?? 9} min={6} max={22} unit="px" onChange={(v) => onChange({ allergenSize: v })} />
 
               {/* Allergen color */}
               <div className="flex items-center gap-2">
@@ -640,42 +671,9 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
           Push the text block away from template logos or decorative borders
         </p>
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Label className="text-xs w-24 shrink-0">Top Offset</Label>
-            <input
-              type="range"
-              min={0}
-              max={50}
-              value={config.contentTopOffset ?? 0}
-              onChange={(e) => onChange({ contentTopOffset: Number(e.target.value) })}
-              className="flex-1"
-            />
-            <span className="text-xs text-gray-500 w-8 text-right">{config.contentTopOffset ?? 0}%</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-xs w-24 shrink-0">Left Offset</Label>
-            <input
-              type="range"
-              min={0}
-              max={40}
-              value={config.contentLeftOffset ?? 0}
-              onChange={(e) => onChange({ contentLeftOffset: Number(e.target.value) })}
-              className="flex-1"
-            />
-            <span className="text-xs text-gray-500 w-8 text-right">{config.contentLeftOffset ?? 0}%</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-xs w-24 shrink-0">Bottom Guard</Label>
-            <input
-              type="range"
-              min={0}
-              max={60}
-              value={config.contentBottomOffset ?? 5}
-              onChange={(e) => onChange({ contentBottomOffset: Number(e.target.value) })}
-              className="flex-1"
-            />
-            <span className="text-xs text-gray-500 w-8 text-right">{config.contentBottomOffset ?? 5}%</span>
-          </div>
+          <SliderInput label="Top Offset"    value={config.contentTopOffset    ?? 0} min={0} max={50} unit="%" onChange={(v) => onChange({ contentTopOffset: v })} />
+          <SliderInput label="Left Offset"   value={config.contentLeftOffset   ?? 0} min={0} max={40} unit="%" onChange={(v) => onChange({ contentLeftOffset: v })} />
+          <SliderInput label="Bottom Guard"  value={config.contentBottomOffset ?? 5} min={0} max={60} unit="%" onChange={(v) => onChange({ contentBottomOffset: v })} />
           <p className="text-xs text-gray-400">
             Use &ldquo;✦ Auto-detect text area&rdquo; (top of panel) to set these automatically from the template image.
           </p>
@@ -686,30 +684,8 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
       <div>
         <h3 className="text-sm font-semibold text-gray-800 mb-3">Spacing</h3>
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Label className="text-xs w-36 shrink-0">Space after heading</Label>
-            <input
-              type="range"
-              min={0}
-              max={60}
-              value={config.spacingAfterHeading ?? 8}
-              onChange={(e) => onChange({ spacingAfterHeading: Number(e.target.value) })}
-              className="flex-1"
-            />
-            <span className="text-xs text-gray-500 w-8 text-right">{config.spacingAfterHeading ?? 8}px</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-xs w-36 shrink-0">Space between items</Label>
-            <input
-              type="range"
-              min={0}
-              max={40}
-              value={config.itemSpacing ?? 6}
-              onChange={(e) => onChange({ itemSpacing: Number(e.target.value) })}
-              className="flex-1"
-            />
-            <span className="text-xs text-gray-500 w-8 text-right">{config.itemSpacing ?? 6}px</span>
-          </div>
+          <SliderInput label="Space after heading" value={config.spacingAfterHeading ?? 8} min={0} max={60} unit="px" labelWidth="w-36" onChange={(v) => onChange({ spacingAfterHeading: v })} />
+          <SliderInput label="Space between items" value={config.itemSpacing ?? 6}         min={0} max={40} unit="px" labelWidth="w-36" onChange={(v) => onChange({ itemSpacing: v })} />
         </div>
       </div>
 
