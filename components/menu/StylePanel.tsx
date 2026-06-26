@@ -126,6 +126,9 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
   const patchFonts = (patch: Partial<MenuConfig["fonts"]>) =>
     onChange({ fonts: { ...config.fonts, ...patch } });
 
+  const patchFontSizes = (patch: Partial<MenuConfig["fontSizes"]>) =>
+    onChange({ fontSizes: { ...(config.fontSizes ?? { category: 18, itemName: 13, description: 10, price: 13 }), ...patch } });
+
   const vegIconFileRef = useRef<HTMLInputElement>(null);
   const nonVegIconFileRef = useRef<HTMLInputElement>(null);
 
@@ -218,6 +221,80 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
               </select>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Font Sizes */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-800 mb-3">Font Sizes</h3>
+        <div className="space-y-3">
+          {([
+            { label: "Category Title", key: "category" as const, min: 10, max: 36 },
+            { label: "Dish Name",      key: "itemName"  as const, min: 8,  max: 28 },
+            { label: "Description",    key: "description" as const, min: 6, max: 20 },
+            { label: "Price",          key: "price"     as const, min: 8,  max: 28 },
+          ] as const).map(({ label, key, min, max }) => {
+            const sizes = config.fontSizes ?? { category: 18, itemName: 13, description: 10, price: 13 };
+            return (
+              <div key={key} className="flex items-center gap-2">
+                <Label className="text-xs w-24 shrink-0">{label}</Label>
+                <input
+                  type="range"
+                  min={min}
+                  max={max}
+                  value={sizes[key]}
+                  onChange={(e) => patchFontSizes({ [key]: Number(e.target.value) })}
+                  className="flex-1"
+                />
+                <span className="text-xs text-gray-500 w-8 text-right">{sizes[key]}px</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Layout */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-800 mb-3">Layout</h3>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs mb-2 block text-gray-600">Columns</Label>
+            <div className="flex gap-2">
+              {([
+                { value: "auto", label: "Auto", desc: "Based on item count" },
+                { value: "1",    label: "1 Column", desc: "All items in one column" },
+                { value: "2",    label: "2 Columns", desc: "Split items into two columns" },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onChange({ layoutColumns: opt.value })}
+                  className={cn(
+                    "flex-1 py-2 px-1.5 rounded-lg border-2 transition-all text-center",
+                    (config.layoutColumns ?? "auto") === opt.value
+                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                      : "border-gray-200 hover:border-indigo-300 text-gray-600"
+                  )}
+                >
+                  <p className="text-xs font-medium">{opt.label}</p>
+                  <p className="text-[9px] text-gray-400 mt-0.5 leading-tight">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs w-24 shrink-0">Content Margin</Label>
+            <input
+              type="range"
+              min={2}
+              max={20}
+              value={config.contentPadding ?? 6}
+              onChange={(e) => onChange({ contentPadding: Number(e.target.value) })}
+              className="flex-1"
+            />
+            <span className="text-xs text-gray-500 w-8 text-right">{config.contentPadding ?? 6}%</span>
+          </div>
+          <p className="text-xs text-gray-400">Increase margin if text overlaps template decorations</p>
         </div>
       </div>
 

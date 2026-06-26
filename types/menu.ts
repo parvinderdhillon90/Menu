@@ -82,6 +82,16 @@ export interface MenuConfig {
   // Allergens
   showAllergens: boolean;
   allergenDisplayStyle: AllergenDisplayStyle;
+  // Font sizes (in canvas points)
+  fontSizes: {
+    category: number;
+    itemName: number;
+    description: number;
+    price: number;
+  };
+  // Layout
+  layoutColumns: "auto" | "1" | "2";
+  contentPadding: number; // % of page dimension applied as margin on all sides
   // Other
   currency: string;
   showDescription: boolean;

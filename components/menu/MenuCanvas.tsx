@@ -275,60 +275,83 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
     H: number,
     rs: number
   ) {
-    const padding = 60 * rs;
-    const colWidth = (W - padding * 2) / 2;
-    const lineH = 20 * rs;
+    const padPct = (config.contentPadding ?? 6) / 100;
+    const padX = W * padPct;
+    const padY = H * padPct;
 
-    const useTwoCols = sections.length > 2 || sections.some((s) => s.items.length > 6);
+    const catFontSize  = (config.fontSizes?.category    ?? 18) * rs;
+    const nameFontSize = (config.fontSizes?.itemName    ?? 13) * rs;
+    const descFontSize = (config.fontSizes?.description ?? 10) * rs;
+    const priceFontSize = (config.fontSizes?.price      ?? 13) * rs;
+    const lineH = nameFontSize * 1.6;
+
+    // Column decision: balance by total item count, not section count
+    const totalItems = sections.reduce((s, sec) => s + sec.items.length, 0);
+    const colPref = config.layoutColumns ?? "auto";
+    const useTwoCols =
+      colPref === "2" ||
+      (colPref === "auto" && totalItems > 8 && sections.length > 1);
 
     let col1Sections: MenuSection[] = [];
     let col2Sections: MenuSection[] = [];
 
     if (useTwoCols) {
-      const half = Math.ceil(sections.length / 2);
-      col1Sections = sections.slice(0, half);
-      col2Sections = sections.slice(half);
+      // Balance by item count so columns are roughly equal in height
+      const target = Math.ceil(totalItems / 2);
+      let counted = 0;
+      let splitAt = sections.length; // default: all in col1 if split not found
+      for (let i = 0; i < sections.length; i++) {
+        counted += sections[i].items.length;
+        if (counted >= target) { splitAt = i + 1; break; }
+      }
+      col1Sections = sections.slice(0, splitAt);
+      col2Sections = sections.slice(splitAt);
     } else {
       col1Sections = sections;
     }
 
+    const colGap = 30 * rs;
+    const contentW = W - padX * 2;
+    const colWidth = useTwoCols ? (contentW - colGap) / 2 : contentW;
+
     const drawColumn = (secs: MenuSection[], startX: number, maxWidth: number) => {
-      let y = padding;
+      let y = padY;
       const placement = config.iconPlacement || "before";
 
       for (const section of secs) {
+        // Category title
         ctx.save();
-        ctx.font = `bold ${18 * rs}px ${config.fonts.category}`;
+        ctx.font = `bold ${catFontSize}px ${config.fonts.category}`;
         ctx.fillStyle = config.colors.category;
         ctx.textAlign = "left";
         const titleText = section.title.toUpperCase();
         ctx.fillText(titleText, startX, y);
-        y += 6 * rs;
+        y += catFontSize * 0.35;
         const titleW = ctx.measureText(titleText).width;
         ctx.fillRect(startX, y, Math.min(titleW, maxWidth), 2 * rs);
-        y += 14 * rs;
+        y += catFontSize * 0.85;
         ctx.restore();
 
         for (const item of section.items) {
-          if (y > H - padding) break;
+          if (y > H - padY) break;
 
           const iconSize = config.showIcons ? config.iconSize * rs : 0;
           const iconGap = config.showIcons && item.type && placement === "before"
             ? (config.iconSize + 4) * rs
             : 0;
           const textX = startX + iconGap;
-          const nameMaxW = maxWidth - iconGap - 70 * rs;
+          const nameMaxW = maxWidth - iconGap - priceFontSize * 4;
 
           const isVeg = item.type === "veg" || item.type === "vegan";
           const iconStyle = isVeg ? config.vegIconStyle : config.nonVegIconStyle;
           const customImg = isVeg ? vegCustomImgRef.current : nonVegCustomImgRef.current;
 
           if (config.showIcons && item.type && placement === "before") {
-            drawTypeIcon(ctx, item.type, startX, y - iconSize * 0.75, iconSize, iconStyle, customImg);
+            drawTypeIcon(ctx, item.type, startX, y - iconSize * 0.8, iconSize, iconStyle, customImg);
           }
 
           ctx.save();
-          ctx.font = `bold ${12 * rs}px ${config.fonts.itemName}`;
+          ctx.font = `bold ${nameFontSize}px ${config.fonts.itemName}`;
           ctx.fillStyle = config.colors.itemName;
           ctx.textAlign = "left";
           const nameText = truncateText(ctx, item.name, nameMaxW);
@@ -336,7 +359,7 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
 
           const priceStr = formatPrice(item.price, config.currency);
           if (priceStr) {
-            ctx.font = `bold ${12 * rs}px ${config.fonts.price}`;
+            ctx.font = `bold ${priceFontSize}px ${config.fonts.price}`;
             ctx.fillStyle = config.colors.price;
             ctx.textAlign = "right";
             ctx.fillText(priceStr, startX + maxWidth, y);
@@ -345,28 +368,28 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
 
           if (config.showIcons && item.type && placement === "after") {
             ctx.save();
-            ctx.font = `bold ${12 * rs}px ${config.fonts.itemName}`;
+            ctx.font = `bold ${nameFontSize}px ${config.fonts.itemName}`;
             const nameW = ctx.measureText(nameText).width;
             ctx.restore();
-            drawTypeIcon(ctx, item.type, textX + nameW + 3 * rs, y - iconSize * 0.75, iconSize, iconStyle, customImg);
+            drawTypeIcon(ctx, item.type, textX + nameW + 3 * rs, y - iconSize * 0.8, iconSize, iconStyle, customImg);
           }
 
           y += lineH;
 
           if (config.showIcons && item.type && placement === "newline") {
-            drawTypeIcon(ctx, item.type, textX, y - iconSize * 0.75, iconSize, iconStyle, customImg);
+            drawTypeIcon(ctx, item.type, textX, y - iconSize * 0.8, iconSize, iconStyle, customImg);
             y += iconSize + 2 * rs;
           }
 
           if (config.showDescription && item.description) {
             ctx.save();
-            ctx.font = `${10 * rs}px ${config.fonts.description}`;
+            ctx.font = `${descFontSize}px ${config.fonts.description}`;
             ctx.fillStyle = config.colors.description;
             ctx.textAlign = "left";
-            const descLines = wrapText(ctx, item.description, maxWidth - iconGap, 10 * rs);
+            const descLines = wrapText(ctx, item.description, maxWidth - iconGap, descFontSize);
             for (const line of descLines.slice(0, 2)) {
               ctx.fillText(line, textX, y);
-              y += lineH * 0.85;
+              y += descFontSize * 1.5;
             }
             ctx.restore();
           }
@@ -377,28 +400,28 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
           }
 
           if (config.showSpiceLevel && item.spiceLevel) {
-            drawSpiceIcon(ctx, item.spiceLevel, textX, y - 10 * rs, 10 * rs);
-            y += lineH * 0.5;
+            drawSpiceIcon(ctx, item.spiceLevel, textX, y - descFontSize, descFontSize);
+            y += descFontSize * 1.4;
           }
 
-          y += 6 * rs;
+          y += nameFontSize * 0.5;
         }
 
-        y += 16 * rs;
+        y += catFontSize;
       }
     };
 
-    drawColumn(col1Sections, padding, useTwoCols ? colWidth - 20 * rs : W - padding * 2);
-    if (useTwoCols) {
-      drawColumn(col2Sections, padding + colWidth + 20 * rs, colWidth - 20 * rs);
+    drawColumn(col1Sections, padX, colWidth);
+    if (useTwoCols && col2Sections.length > 0) {
+      drawColumn(col2Sections, padX + colWidth + colGap, colWidth);
     }
 
     if (sections.length > 0) {
       ctx.save();
-      ctx.font = `${9 * rs}px ${config.fonts.itemName}`;
+      ctx.font = `${descFontSize}px ${config.fonts.itemName}`;
       ctx.fillStyle = config.colors.description;
       ctx.textAlign = "center";
-      ctx.fillText(`${pageIndex + 1}`, W / 2, H - 20 * rs);
+      ctx.fillText(`${pageIndex + 1}`, W / 2, H - padY * 0.5);
       ctx.restore();
     }
   }
