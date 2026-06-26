@@ -368,13 +368,17 @@ export default function Home() {
         )}
 
         {step === "style" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-1 space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            {/* Left — scrollable style controls */}
+            <div className="lg:col-span-1 flex flex-col gap-4">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 mb-1">Styling</h2>
                 <p className="text-sm text-gray-500">Customize colors, fonts and layout</p>
               </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div
+                className="bg-white rounded-xl border border-gray-200 p-5 overflow-y-auto"
+                style={{ maxHeight: "calc(100vh - 13rem)" }}
+              >
                 <StylePanel config={config} onChange={patchConfig} />
               </div>
               <div className="flex justify-between">
@@ -386,8 +390,12 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
+            {/* Right — sticky preview */}
+            <div
+              className="lg:col-span-2 sticky"
+              style={{ top: "5rem" }}
+            >
+              <div className="bg-white rounded-xl border border-gray-200 p-5 overflow-y-auto" style={{ maxHeight: "calc(100vh - 7rem)" }}>
                 <h3 className="text-sm font-semibold text-gray-700 mb-4">Live Preview</h3>
                 {pages.length > 0 ? (
                   <MenuPreview pages={pages} config={config} />
