@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useCallback, useMemo } from "react";
-import { BookOpen, Layers, Settings, Eye, ChevronRight, Plus, Trash2 } from "lucide-react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { BookOpen, Layers, Settings, Eye, ChevronRight, Plus, Trash2, Save, FolderOpen, Clock } from "lucide-react";
 import { MenuConfig, MenuSection, PageTemplate } from "@/types/menu";
 import TemplateUpload from "@/components/menu/TemplateUpload";
 import ExcelUpload from "@/components/menu/ExcelUpload";
@@ -51,6 +51,7 @@ const DEFAULT_CONFIG: MenuConfig = {
   showSpiceLevel: true,
   showAllergens: false,
   allergenDisplayStyle: "emoji",
+  allergenPlacement: "below",
   allergenSize: 9,
   allergenColor: "#e65100",
   spacingAfterHeading: 8,
@@ -134,6 +135,16 @@ async function detectSafeTextArea(
   });
 }
 
+const SAVE_KEY = "menucraft_session";
+
+function formatTimeAgo(date: Date): string {
+  const secs = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (secs < 60) return "just now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  return `${Math.floor(mins / 60)}h ago`;
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>("setup");
   const [config, setConfig] = useState<MenuConfig>(DEFAULT_CONFIG);
@@ -145,10 +156,104 @@ export default function Home() {
   const [customInnerTemplates, setCustomInnerTemplates] = useState<(PageTemplate | null)[]>([]);
 
   const [detecting, setDetecting] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [savedSession, setSavedSession] = useState<{ savedAt: string } | null>(null);
+  const [ticker, setTicker] = useState(0);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadFileRef = useRef<HTMLInputElement>(null);
+
+  // Re-render "X min ago" every 30s
+  useEffect(() => {
+    const id = setInterval(() => setTicker((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Check for existing saved session on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data?.version === 1 && data.savedAt) setSavedSession({ savedAt: data.savedAt });
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   const patchConfig = useCallback((patch: Partial<MenuConfig>) => {
     setConfig((c) => ({ ...c, ...patch }));
   }, []);
+
+  // Serialize full project state to JSON string
+  const serialize = useCallback(
+    () =>
+      JSON.stringify({
+        version: 1,
+        savedAt: new Date().toISOString(),
+        step,
+        config,
+        sections,
+        singleTemplate,
+        frontTemplate,
+        innerTemplate,
+        lastTemplate,
+        customInnerTemplates,
+      }),
+    [step, config, sections, singleTemplate, frontTemplate, innerTemplate, lastTemplate, customInnerTemplates]
+  );
+
+  // Restore state from a JSON string
+  const restore = useCallback((json: string): boolean => {
+    try {
+      const d = JSON.parse(json);
+      if (d?.version !== 1) return false;
+      if (d.config)               setConfig(d.config);
+      if (d.sections)             setSections(d.sections);
+      if (d.singleTemplate !== undefined) setSingleTemplate(d.singleTemplate);
+      if (d.frontTemplate  !== undefined) setFrontTemplate(d.frontTemplate);
+      if (d.innerTemplate  !== undefined) setInnerTemplate(d.innerTemplate);
+      if (d.lastTemplate   !== undefined) setLastTemplate(d.lastTemplate);
+      if (d.customInnerTemplates) setCustomInnerTemplates(d.customInnerTemplates);
+      return true;
+    } catch { return false; }
+  }, []);
+
+  // Auto-save to localStorage, debounced 1.5 s
+  useEffect(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(SAVE_KEY, serialize());
+        setLastSaved(new Date());
+      } catch { /* quota exceeded — ignore */ }
+    }, 1500);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, sections, singleTemplate, frontTemplate, innerTemplate, lastTemplate, customInnerTemplates]);
+
+  // Download project as JSON file
+  const handleSaveFile = useCallback(() => {
+    const blob = new Blob([serialize()], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${config.restaurantName || "menu"}-${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  }, [serialize, config.restaurantName]);
+
+  // Load project from JSON file
+  const handleLoadFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") restore(reader.result);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }, [restore]);
 
   const handleAutoDetect = useCallback(async () => {
     // Use the content template (inner for multi, single for single)
@@ -240,6 +345,27 @@ export default function Home() {
             <span className="text-gray-300">|</span>
             <span className="text-sm text-gray-500">Menu Generator</span>
           </div>
+          {/* Save / Load */}
+          <div className="flex items-center gap-2">
+            {lastSaved && (
+              <span className="hidden sm:flex items-center gap-1 text-xs text-gray-400">
+                <Clock size={11} />
+                {formatTimeAgo(lastSaved)}
+                {/* ticker causes re-render so the time stays fresh */}
+                {ticker > -1 ? "" : ""}
+              </span>
+            )}
+            <button type="button" onClick={handleSaveFile}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+              <Save size={13} /> Save
+            </button>
+            <button type="button" onClick={() => loadFileRef.current?.click()}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+              <FolderOpen size={13} /> Load
+            </button>
+            <input ref={loadFileRef} type="file" accept=".json" className="hidden" onChange={handleLoadFile} />
+          </div>
+
           <nav className="flex items-center gap-1">
             {STEPS.map((s, i) => (
               <React.Fragment key={s.id}>
@@ -269,6 +395,28 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {savedSession && (
+          <div className="mb-4 flex items-center justify-between gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 text-sm">
+            <span className="text-indigo-700">
+              Auto-saved session from <strong>{new Date(savedSession.savedAt).toLocaleString()}</strong> found.
+            </span>
+            <div className="flex gap-2 shrink-0">
+              <button type="button"
+                onClick={() => {
+                  const raw = localStorage.getItem(SAVE_KEY);
+                  if (raw) restore(raw);
+                  setSavedSession(null);
+                }}
+                className="px-3 py-1 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+                Restore
+              </button>
+              <button type="button" onClick={() => setSavedSession(null)}
+                className="px-3 py-1 text-xs font-medium text-indigo-500 hover:text-indigo-700 transition-colors">
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
         {step === "setup" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="space-y-6">

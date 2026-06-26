@@ -44,7 +44,8 @@ export interface PageTemplate {
 export type VegIconStyle = "fssai" | "circle-outline" | "filled-circle" | "leaf" | "custom";
 export type NonVegIconStyle = "fssai" | "circle-outline" | "filled-circle" | "triangle" | "custom";
 export type IconPlacement = "before" | "after" | "newline";
-export type AllergenDisplayStyle = "text" | "emoji" | "symbol" | "custom";
+export type AllergenDisplayStyle = "text" | "emoji" | "symbol" | "custom" | "both";
+export type AllergenPlacement = "before" | "after" | "below";
 
 export interface MenuConfig {
   restaurantName: string;
@@ -83,9 +84,11 @@ export interface MenuConfig {
   // Allergens
   showAllergens: boolean;
   allergenDisplayStyle: AllergenDisplayStyle;
+  allergenPlacement: AllergenPlacement;
   allergenIconCustom?: string; // base64 custom allergen icon
   allergenSize: number;   // font/icon size in canvas points
   allergenColor: string;  // badge/text color
+  customFonts?: { name: string; data: string }[]; // base64-encoded uploaded fonts
   // Spacing
   spacingAfterHeading: number; // extra px after category heading
   itemSpacing: number;         // extra px between items

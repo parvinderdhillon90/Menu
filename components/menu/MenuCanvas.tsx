@@ -216,6 +216,22 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
   const allergenCustomImgRef = useRef<HTMLImageElement | null>(null);
   const [customImagesVersion, setCustomImagesVersion] = useState(0);
 
+  // Re-register custom fonts on mount and whenever they change
+  useEffect(() => {
+    if (!config.customFonts?.length) return;
+    Promise.all(
+      config.customFonts.map(async ({ name, data }) => {
+        if ([...document.fonts].some((f) => f.family === name)) return;
+        try {
+          const face = new FontFace(name, `url(${data})`);
+          await face.load();
+          document.fonts.add(face);
+        } catch { /* ignore */ }
+      })
+    ).then(() => setCustomImagesVersion((v) => v + 1));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.customFonts]);
+
   useEffect(() => {
     if (config.vegIconStyle === "custom" && config.vegIconCustom) {
       const img = new Image();
@@ -253,8 +269,16 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
       const img = new Image();
       img.crossOrigin = "anonymous";
 
-      img.onload = () => {
+      img.onload = async () => {
         ctx.drawImage(img, 0, 0, W, H);
+        // Ensure all selected fonts are loaded before drawing text
+        const fs = renderScale * 12;
+        await Promise.allSettled([
+          document.fonts.load(`bold ${fs}px "${config.fonts.category}"`),
+          document.fonts.load(`${fs}px "${config.fonts.itemName}"`),
+          document.fonts.load(`${fs}px "${config.fonts.description}"`),
+          document.fonts.load(`bold ${fs}px "${config.fonts.price}"`),
+        ]);
         drawMenuContent(ctx, W, H, renderScale);
       };
 
@@ -321,12 +345,18 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
     const iconOffsetX = (config.iconPosition?.x ?? 0) * rs;
     const iconOffsetY = (config.iconPosition?.y ?? 0) * rs;
 
-    // Allergen inline area width (reserved on the right for emoji/symbol/custom icons)
     const allergenStyle = config.allergenDisplayStyle || "text";
-    const inlineAllergen = config.showAllergens && allergenStyle !== "text";
+    const allergenPlacement = config.allergenPlacement ?? "below";
     const allergenSz = (config.allergenSize ?? 9) * rs;
     const allergenColor = config.allergenColor ?? "#e65100";
-    const allergenAreaW = inlineAllergen ? allergenSz * 3.5 : 0;
+    // Whether allergen indicator renders inline (before/after name) vs always below
+    const allergenInline = config.showAllergens && allergenStyle !== "text" && allergenPlacement !== "below";
+    // Reserve extra left space for "before" placement
+    const allergenBeforeW = allergenInline && allergenPlacement === "before" ? allergenSz * 1.8 : 0;
+    // Reserve space between name and price for "after" placement
+    const allergenAfterW  = allergenInline && allergenPlacement === "after"  ? allergenSz * 3.5 : 0;
+    // Old right-side reserved area (no longer used — kept as 0)
+    const allergenAreaW = 0;
 
     const drawColumn = (secs: MenuSection[], startX: number, maxWidth: number) => {
       let y = padY;
@@ -355,9 +385,10 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
           const iconGap = config.showIcons && item.type && placement === "before"
             ? (config.iconSize + 4) * rs
             : 0;
-          const textX = startX + iconGap;
-          // Reserve right space for price + inline allergen indicator
-          const nameMaxW = maxWidth - iconGap - priceFontSize * 4 - allergenAreaW;
+          // Extra left shift when allergen goes "before" the name
+          const allergenBeforeShift = item.allergens ? allergenBeforeW : 0;
+          const textX = startX + iconGap + allergenBeforeShift;
+          const nameMaxW = maxWidth - iconGap - allergenBeforeShift - priceFontSize * 4 - (item.allergens ? allergenAfterW : 0);
 
           const isVeg = item.type === "veg" || item.type === "vegan";
           const iconStyle = isVeg ? config.vegIconStyle : config.nonVegIconStyle;
@@ -399,40 +430,51 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
               iconSize, iconStyle, customImg);
           }
 
-          // Inline allergen indicator on the same row (emoji / symbol / custom icon)
-          if (inlineAllergen && item.allergens) {
-            const allergenX = startX + maxWidth; // right-align to full col edge
-            const allergenY = y;
+          // Allergen icon rendering helper (emoji / symbol / custom) at a given x,y
+          const drawAllergenIcon = (ax: number, ay: number, rightAlign = false) => {
+            if (!item.allergens) return;
+            const allergens = item.allergens.split(/[,;]/).map((a) => a.trim().toLowerCase()).filter(Boolean);
             if (allergenStyle === "custom" && allergenCustomImgRef.current) {
-              ctx.drawImage(allergenCustomImgRef.current,
-                allergenX - allergenSz, allergenY - allergenSz * 0.85, allergenSz, allergenSz);
-            } else if (allergenStyle === "emoji") {
-              const allergens = item.allergens.split(/[,;]/).map((a) => a.trim().toLowerCase()).filter(Boolean);
+              const ox = rightAlign ? ax - allergenSz : ax;
+              ctx.drawImage(allergenCustomImgRef.current, ox, ay - allergenSz * 0.85, allergenSz, allergenSz);
+            } else if (allergenStyle === "emoji" || allergenStyle === "both") {
               const emojis = allergens.slice(0, 3).map((a) => ALLERGEN_EMOJI[a] ?? "⚠️").join(" ");
               ctx.save();
               ctx.font = `${allergenSz}px serif`;
-              ctx.textAlign = "right";
+              ctx.textAlign = rightAlign ? "right" : "left";
               ctx.textBaseline = "alphabetic";
-              ctx.fillText(emojis, allergenX, allergenY);
+              ctx.fillText(emojis, ax, ay);
               ctx.restore();
             } else if (allergenStyle === "symbol") {
-              const allergens = item.allergens.split(/[,;]/).map((a) => a.trim().toLowerCase()).filter(Boolean);
-              let ax = allergenX - allergenSz;
-              for (const a of allergens.slice(0, 3).reverse()) {
+              let cx = rightAlign ? ax - allergenSz : ax;
+              const items = rightAlign ? allergens.slice(0, 3).reverse() : allergens.slice(0, 3);
+              for (const a of items) {
                 ctx.fillStyle = allergenColor;
                 ctx.beginPath();
-                ctx.arc(ax - allergenSz / 2, allergenY - allergenSz * 0.6, allergenSz / 2, 0, Math.PI * 2);
+                ctx.arc(cx + allergenSz / 2, ay - allergenSz * 0.6, allergenSz / 2, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.fillStyle = "#fff";
                 ctx.font = `bold ${allergenSz * 0.62}px sans-serif`;
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText(a[0].toUpperCase(), ax - allergenSz / 2, allergenY - allergenSz * 0.6);
-                ax -= allergenSz + 2 * rs;
+                ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText(a[0].toUpperCase(), cx + allergenSz / 2, ay - allergenSz * 0.6);
+                cx += (allergenSz + 2 * rs) * (rightAlign ? -1 : 1);
               }
-              ctx.textAlign = "left";
-              ctx.textBaseline = "alphabetic";
+              ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
             }
+          };
+
+          // Draw allergen BEFORE name
+          if (allergenInline && allergenPlacement === "before" && item.allergens) {
+            drawAllergenIcon(startX + iconGap, y, false);
+          }
+
+          // Draw allergen AFTER name (between name and price)
+          if (allergenInline && allergenPlacement === "after" && item.allergens) {
+            ctx.save();
+            ctx.font = `bold ${nameFontSize}px ${config.fonts.itemName}`;
+            const nw = ctx.measureText(nameText).width;
+            ctx.restore();
+            drawAllergenIcon(textX + nw + 4 * rs, y, false);
           }
 
           y += lineH;
@@ -458,11 +500,19 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
             ctx.restore();
           }
 
-          // Text-mode allergens shown below item (only when style is "text")
-          if (config.showAllergens && item.allergens && allergenStyle === "text") {
-            drawAllergens(ctx, item.allergens, textX, y, maxWidth - iconGap, rs, "text",
-              config.allergenSize ?? 9, config.allergenColor ?? "#e65100");
-            y += allergenSz * 1.5;
+          // Below-placement allergen: text style, "below" placement icon styles, and "both"
+          if (config.showAllergens && item.allergens) {
+            const needsIconBelow = allergenStyle !== "text" && allergenPlacement === "below";
+            const needsTextBelow = allergenStyle === "text" || allergenStyle === "both";
+            if (needsIconBelow) {
+              drawAllergenIcon(textX, y, false);
+              y += allergenSz * 1.5;
+            }
+            if (needsTextBelow) {
+              drawAllergens(ctx, item.allergens, textX, y, maxWidth - iconGap, rs, "text",
+                config.allergenSize ?? 9, allergenColor);
+              y += allergenSz * 1.5;
+            }
           }
 
           if (config.showSpiceLevel && item.spiceLevel) {

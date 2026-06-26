@@ -1,18 +1,47 @@
 "use client";
 
-import React, { useRef, useCallback } from "react";
+import React, { useRef, useCallback, useState } from "react";
 import { Upload } from "lucide-react";
-import { MenuConfig, VegIconStyle, NonVegIconStyle, IconPlacement, AllergenDisplayStyle } from "@/types/menu";
+import { MenuConfig, VegIconStyle, NonVegIconStyle, IconPlacement, AllergenDisplayStyle, AllergenPlacement } from "@/types/menu";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { fileToDataUrl } from "@/lib/utils";
 
-const FONTS = [
-  "Inter", "Playfair Display", "Lato", "Montserrat", "Raleway",
-  "Georgia", "Times New Roman", "Arial", "Trebuchet MS", "Verdana",
-  "Cormorant Garamond", "EB Garamond", "Libre Baskerville",
+// System fonts (always available, no loading needed)
+const SYSTEM_FONTS = ["Inter", "Georgia", "Times New Roman", "Arial", "Trebuchet MS", "Verdana"];
+
+// Google Fonts (loaded on-demand via Google Fonts API)
+const GOOGLE_FONTS = [
+  // Elegant Serif
+  "Playfair Display", "Cormorant Garamond", "EB Garamond", "Libre Baskerville",
+  "Merriweather", "Lora", "Crimson Text", "Spectral", "Cardo", "Domine",
+  "Vollkorn", "Alegreya", "Frank Ruhl Libre", "Noto Serif",
+  // Clean Sans-Serif
+  "Montserrat", "Raleway", "Lato", "Roboto", "Open Sans", "Nunito",
+  "Josefin Sans", "Quicksand", "Poppins", "DM Sans", "Work Sans",
+  "Mulish", "Barlow", "Rubik", "Outfit", "Figtree", "Plus Jakarta Sans",
+  "Syne", "Urbanist", "Manrope", "Jost",
+  // Display
+  "Bebas Neue", "Oswald", "Anton", "Teko", "Archivo Black", "Black Han Sans",
+  // Script / Decorative
+  "Great Vibes", "Dancing Script", "Pacifico", "Sacramento", "Allura",
+  "Tangerine", "Satisfy", "Italianno", "Pinyon Script",
 ];
+
+const ALL_FONTS = [...SYSTEM_FONTS, ...GOOGLE_FONTS];
+
+// Inject a Google Fonts stylesheet for a single family (idempotent)
+function loadGoogleFont(family: string) {
+  if (SYSTEM_FONTS.includes(family)) return;
+  const id = `gf-${family.replace(/\s+/g, "-")}`;
+  if (document.getElementById(id)) return;
+  const link = document.createElement("link");
+  link.id = id;
+  link.rel = "stylesheet";
+  link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}&display=swap`;
+  document.head.appendChild(link);
+}
 
 const VEG_ICON_OPTIONS: { value: VegIconStyle; label: string; preview: React.ReactNode }[] = [
   {
@@ -181,9 +210,26 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
   const patchFontSizes = (patch: Partial<MenuConfig["fontSizes"]>) =>
     onChange({ fontSizes: { ...(config.fontSizes ?? { category: 18, itemName: 13, description: 10, price: 13 }), ...patch } });
 
+  const [fontSearch, setFontSearch] = useState("");
   const vegIconFileRef = useRef<HTMLInputElement>(null);
   const nonVegIconFileRef = useRef<HTMLInputElement>(null);
   const allergenIconFileRef = useRef<HTMLInputElement>(null);
+  const customFontFileRef = useRef<HTMLInputElement>(null);
+
+  const handleCustomFontUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const data = await fileToDataUrl(file);
+      const name = file.name.replace(/\.(ttf|otf|woff2?)$/i, "").replace(/[-_]/g, " ");
+      const face = new FontFace(name, `url(${data})`);
+      await face.load();
+      document.fonts.add(face);
+      const existing = config.customFonts ?? [];
+      onChange({ customFonts: [...existing.filter((f) => f.name !== name), { name, data }] });
+    } catch { /* ignore */ }
+    e.target.value = "";
+  };
 
   const handleAllergenIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -277,29 +323,63 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
 
       {/* Fonts */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-800 mb-3">Fonts</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-800">Fonts</h3>
+          <button type="button" onClick={() => customFontFileRef.current?.click()}
+            className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+            <Upload size={11} /> Upload font
+          </button>
+          <input ref={customFontFileRef} type="file" accept=".ttf,.otf,.woff,.woff2" className="hidden" onChange={handleCustomFontUpload} />
+        </div>
+        {/* Search filter */}
+        <Input
+          value={fontSearch}
+          onChange={(e) => setFontSearch(e.target.value)}
+          placeholder="Search fonts…"
+          className="mb-2 h-7 text-xs"
+        />
         <div className="space-y-2">
-          {[
+          {([
             { label: "Category", key: "category" as const },
             { label: "Dish Name", key: "itemName" as const },
             { label: "Description", key: "description" as const },
             { label: "Price", key: "price" as const },
-          ].map(({ label, key }) => (
-            <div key={key} className="flex items-center gap-2">
-              <Label className="text-xs w-24 shrink-0">{label}</Label>
-              <select
-                value={config.fonts[key]}
-                onChange={(e) => patchFonts({ [key]: e.target.value })}
-                className="flex-1 h-8 text-xs border border-gray-300 rounded-md px-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                style={{ fontFamily: config.fonts[key] }}
-              >
-                {FONTS.map((f) => (
-                  <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
-                ))}
-              </select>
-            </div>
-          ))}
+          ] as const).map(({ label, key }) => {
+            const allOptions = [
+              ...ALL_FONTS,
+              ...(config.customFonts?.map((f) => f.name) ?? []),
+            ];
+            const filtered = fontSearch.trim()
+              ? allOptions.filter((f) => f.toLowerCase().includes(fontSearch.toLowerCase()))
+              : allOptions;
+            const listId = `font-list-${key}`;
+            return (
+              <div key={key} className="flex items-center gap-2">
+                <Label className="text-xs w-24 shrink-0">{label}</Label>
+                <div className="flex-1 relative">
+                  <input
+                    list={listId}
+                    value={config.fonts[key]}
+                    onChange={(e) => {
+                      patchFonts({ [key]: e.target.value });
+                      loadGoogleFont(e.target.value);
+                    }}
+                    className="w-full h-8 text-xs border border-gray-300 rounded-md px-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    style={{ fontFamily: config.fonts[key] }}
+                  />
+                  <datalist id={listId}>
+                    {filtered.map((f) => <option key={f} value={f} />)}
+                  </datalist>
+                </div>
+              </div>
+            );
+          })}
         </div>
+        {config.customFonts && config.customFonts.length > 0 && (
+          <p className="text-xs text-gray-400 mt-2">
+            Custom: {config.customFonts.map((f) => f.name).join(", ")}
+          </p>
+        )}
       </div>
 
       {/* Font Sizes */}
@@ -594,15 +674,14 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
               <div>
                 <Label className="text-xs mb-2 block text-gray-600">Display Style</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: "emoji" as AllergenDisplayStyle, label: "Emoji (inline)", example: "🌾 🥛 🥚" },
-                    { value: "symbol" as AllergenDisplayStyle, label: "Badges (inline)", example: "G  D  E" },
-                    { value: "text" as AllergenDisplayStyle, label: "Text (below item)", example: "Contains: gluten" },
-                    { value: "custom" as AllergenDisplayStyle, label: "Custom Icon", example: "Upload below ↓" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
+                  {([
+                    { value: "emoji",   label: "Emoji",        example: "🌾 🥛 🥚" },
+                    { value: "symbol",  label: "Badges",       example: "G  D  E" },
+                    { value: "text",    label: "Text only",    example: "Contains: gluten" },
+                    { value: "custom",  label: "Custom icon",  example: "Upload below ↓" },
+                    { value: "both",    label: "Icon + Text",  example: "🌾 + Contains…" },
+                  ] as { value: AllergenDisplayStyle; label: string; example: string }[]).map((opt) => (
+                    <button key={opt.value} type="button"
                       onClick={() => onChange({ allergenDisplayStyle: opt.value })}
                       className={cn(
                         "py-2 px-2 rounded-lg border-2 transition-all text-center",
@@ -617,6 +696,33 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
                   ))}
                 </div>
               </div>
+
+              {/* Allergen placement */}
+              {config.allergenDisplayStyle !== "text" && (
+                <div>
+                  <Label className="text-xs mb-2 block text-gray-600">Allergen Position</Label>
+                  <div className="flex gap-2">
+                    {([
+                      { value: "before", label: "Before name", sub: "⚠ Dish name" },
+                      { value: "after",  label: "After name",  sub: "Dish name ⚠" },
+                      { value: "below",  label: "Below name",  sub: "Dish name ↵ ⚠" },
+                    ] as { value: AllergenPlacement; label: string; sub: string }[]).map((opt) => (
+                      <button key={opt.value} type="button"
+                        onClick={() => onChange({ allergenPlacement: opt.value })}
+                        className={cn(
+                          "flex-1 py-2 px-1.5 rounded-lg border-2 transition-all text-center",
+                          (config.allergenPlacement ?? "below") === opt.value
+                            ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                            : "border-gray-200 hover:border-indigo-300 text-gray-600"
+                        )}
+                      >
+                        <p className="text-xs font-medium">{opt.label}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{opt.sub}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Custom allergen icon upload */}
               <div className="flex items-center gap-2">
