@@ -102,8 +102,8 @@ export default function ExcelUpload({ sections, onParsed }: ExcelUploadProps) {
                 {sections.length} categories · {totalItems} items loaded
               </p>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {sections.map((s) => (
-                  <span key={s.title} className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                {sections.map((s, i) => (
+                  <span key={`${i}-${s.title}`} className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                     {s.title} ({s.items.length})
                   </span>
                 ))}
