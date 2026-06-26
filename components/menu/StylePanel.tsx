@@ -361,6 +361,7 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
                   {VEG_ICON_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
+                      type="button"
                       onClick={() => onChange({ vegIconStyle: opt.value })}
                       title={opt.label}
                       className={cn(
@@ -378,6 +379,7 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
                 {config.vegIconStyle === "custom" && (
                   <div className="mt-2 flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => vegIconFileRef.current?.click()}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-dashed border-gray-300 hover:border-indigo-400 hover:text-indigo-600 text-gray-600 transition-colors"
                     >
@@ -405,6 +407,7 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
                   {NON_VEG_ICON_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
+                      type="button"
                       onClick={() => onChange({ nonVegIconStyle: opt.value })}
                       title={opt.label}
                       className={cn(
@@ -422,6 +425,7 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
                 {config.nonVegIconStyle === "custom" && (
                   <div className="mt-2 flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => nonVegIconFileRef.current?.click()}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-dashed border-gray-300 hover:border-indigo-400 hover:text-indigo-600 text-gray-600 transition-colors"
                     >
@@ -480,6 +484,7 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
                 <div
                   ref={iconDragRef}
                   className="relative w-full h-20 bg-gray-100 rounded-lg border border-gray-200 cursor-crosshair select-none overflow-hidden"
+                  style={{ touchAction: "none" }}
                   onMouseDown={(e) => {
                     isDraggingIcon.current = true;
                     computeIconOffset(e.clientX, e.clientY);

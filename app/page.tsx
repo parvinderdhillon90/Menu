@@ -324,8 +324,8 @@ export default function Home() {
                     <h3 className="text-sm font-semibold text-gray-700">Loaded Menu Items</h3>
                   </div>
                   <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
-                    {sections.map((sec) => (
-                      <div key={sec.title} className="px-4 py-3">
+                    {sections.map((sec, i) => (
+                      <div key={`${i}-${sec.title}`} className="px-4 py-3">
                         <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-2">{sec.title}</p>
                         <div className="space-y-1.5">
                           {sec.items.map((item, i) => (
