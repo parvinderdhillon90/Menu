@@ -279,6 +279,8 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
     const padPct = (config.contentPadding ?? 6) / 100;
     const padX = W * padPct + W * (config.contentLeftOffset ?? 0) / 100;
     const padY = H * padPct + H * (config.contentTopOffset ?? 0) / 100;
+    // maxContentY: text stops here — bottom guard keeps text out of photo areas
+    const maxContentY = H - H * (padPct + (config.contentBottomOffset ?? 5) / 100);
 
     const catFontSize  = (config.fontSizes?.category    ?? 18) * rs;
     const nameFontSize = (config.fontSizes?.itemName    ?? 13) * rs;
@@ -347,7 +349,7 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
         ctx.restore();
 
         for (const item of section.items) {
-          if (y > H - padY) break;
+          if (y > maxContentY) break;
 
           const iconSize = config.showIcons ? config.iconSize * rs : 0;
           const iconGap = config.showIcons && item.type && placement === "before"

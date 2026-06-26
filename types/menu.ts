@@ -99,8 +99,9 @@ export interface MenuConfig {
   // Layout
   layoutColumns: "auto" | "1" | "2";
   contentPadding: number; // % of page dimension applied as margin on all sides
-  contentTopOffset: number;  // extra % pushed down from top (to clear template header art)
-  contentLeftOffset: number; // extra % pushed in from left
+  contentTopOffset: number;    // extra % pushed down from top (to clear template header art)
+  contentBottomOffset: number; // extra % removed from bottom (to avoid photo area)
+  contentLeftOffset: number;   // extra % pushed in from left
   // Other
   currency: string;
   showDescription: boolean;

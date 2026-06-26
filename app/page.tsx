@@ -44,6 +44,7 @@ const DEFAULT_CONFIG: MenuConfig = {
   layoutColumns: "auto",
   contentPadding: 6,
   contentTopOffset: 0,
+  contentBottomOffset: 5,
   contentLeftOffset: 0,
   currency: "£",
   showDescription: true,
@@ -58,6 +59,81 @@ const DEFAULT_CONFIG: MenuConfig = {
 
 type Step = "setup" | "style" | "preview";
 
+// Analyse a template image on canvas to find the safe text zone.
+// Divides into horizontal strips and measures brightness variance (high variance
+// = photographic/complex area = avoid placing text there).
+async function detectSafeTextArea(
+  imageUrl: string
+): Promise<{ topOffset: number; bottomOffset: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const STRIPS = 24;
+      const W = Math.min(img.width, 300);
+      const H = Math.min(img.height, 300);
+      const canvas = document.createElement("canvas");
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return resolve({ topOffset: 0, bottomOffset: 5 });
+      ctx.drawImage(img, 0, 0, W, H);
+
+      const stripH = Math.max(1, Math.floor(H / STRIPS));
+      const vars: number[] = [];
+
+      for (let s = 0; s < STRIPS; s++) {
+        const y = s * stripH;
+        const data = ctx.getImageData(0, y, W, Math.min(stripH, H - y)).data;
+        let sum = 0, sq = 0, n = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const b = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
+          sum += b; sq += b * b; n++;
+        }
+        const mean = n ? sum / n : 0;
+        vars.push(n ? sq / n - mean * mean : 0);
+      }
+
+      // Adaptive threshold: strips with variance in the top 35% of the range are "complex"
+      const hi = Math.max(...vars);
+      const lo = Math.min(...vars);
+      const threshold = lo + (hi - lo) * 0.35;
+
+      // Bottom: walk up from bottom to find where the complex photo zone starts
+      let lastSafeStrip = STRIPS - 1;
+      let complexCount = 0;
+      for (let i = STRIPS - 1; i >= 0; i--) {
+        if (vars[i] > threshold) {
+          complexCount++;
+          if (complexCount >= 2) { lastSafeStrip = i; }
+        } else {
+          complexCount = 0;
+        }
+      }
+      const bottomOffset = Math.round(((STRIPS - 1 - lastSafeStrip) / STRIPS) * 100);
+
+      // Top: walk down to skip any complex header region
+      let firstSafeStrip = 0;
+      complexCount = 0;
+      for (let i = 0; i < Math.floor(STRIPS / 2); i++) {
+        if (vars[i] > threshold) {
+          complexCount++;
+          if (complexCount >= 2) firstSafeStrip = i + 1;
+        } else {
+          complexCount = 0;
+        }
+      }
+      const topOffset = Math.round((firstSafeStrip / STRIPS) * 100);
+
+      resolve({
+        topOffset: Math.min(topOffset, 35),
+        bottomOffset: Math.min(Math.max(bottomOffset, 0), 60),
+      });
+    };
+    img.onerror = () => resolve({ topOffset: 0, bottomOffset: 5 });
+    img.src = imageUrl;
+  });
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>("setup");
   const [config, setConfig] = useState<MenuConfig>(DEFAULT_CONFIG);
@@ -68,9 +144,27 @@ export default function Home() {
   const [lastTemplate, setLastTemplate] = useState<PageTemplate | null>(null);
   const [customInnerTemplates, setCustomInnerTemplates] = useState<(PageTemplate | null)[]>([]);
 
+  const [detecting, setDetecting] = useState(false);
+
   const patchConfig = useCallback((patch: Partial<MenuConfig>) => {
     setConfig((c) => ({ ...c, ...patch }));
   }, []);
+
+  const handleAutoDetect = useCallback(async () => {
+    // Use the content template (inner for multi, single for single)
+    const url =
+      config.menuType === "single"
+        ? singleTemplate?.imageUrl
+        : (innerTemplate ?? frontTemplate)?.imageUrl;
+    if (!url) return;
+    setDetecting(true);
+    try {
+      const { topOffset, bottomOffset } = await detectSafeTextArea(url);
+      patchConfig({ contentTopOffset: topOffset, contentBottomOffset: bottomOffset });
+    } finally {
+      setDetecting(false);
+    }
+  }, [config.menuType, singleTemplate, innerTemplate, frontTemplate, patchConfig]);
 
   const pages = useMemo(() => {
     if (sections.length === 0) return [];
@@ -396,9 +490,20 @@ export default function Home() {
           >
             {/* Left — style controls with internal scroll */}
             <div className="lg:col-span-1 flex flex-col gap-4 min-h-0 overflow-hidden">
-              <div className="shrink-0">
-                <h2 className="text-xl font-bold text-gray-900 mb-1">Styling</h2>
-                <p className="text-sm text-gray-500">Customize colors, fonts and layout</p>
+              <div className="shrink-0 flex items-start justify-between gap-2">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-1">Styling</h2>
+                  <p className="text-sm text-gray-500">Customize colors, fonts and layout</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAutoDetect}
+                  disabled={detecting || !(singleTemplate ?? innerTemplate ?? frontTemplate)}
+                  className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-indigo-300 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="Analyses the template image and automatically sets top/bottom content limits to avoid photo areas"
+                >
+                  {detecting ? "Detecting…" : "✦ Auto-detect text area"}
+                </button>
               </div>
               <div className="flex-1 min-h-0 bg-white rounded-xl border border-gray-200 p-5 overflow-y-auto">
                 <StylePanel config={config} onChange={patchConfig} />

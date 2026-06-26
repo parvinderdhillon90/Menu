@@ -664,6 +664,21 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
             />
             <span className="text-xs text-gray-500 w-8 text-right">{config.contentLeftOffset ?? 0}%</span>
           </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs w-24 shrink-0">Bottom Guard</Label>
+            <input
+              type="range"
+              min={0}
+              max={60}
+              value={config.contentBottomOffset ?? 5}
+              onChange={(e) => onChange({ contentBottomOffset: Number(e.target.value) })}
+              className="flex-1"
+            />
+            <span className="text-xs text-gray-500 w-8 text-right">{config.contentBottomOffset ?? 5}%</span>
+          </div>
+          <p className="text-xs text-gray-400">
+            Use &ldquo;✦ Auto-detect text area&rdquo; (top of panel) to set these automatically from the template image.
+          </p>
         </div>
       </div>
 
