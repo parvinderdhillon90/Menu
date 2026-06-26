@@ -598,6 +598,32 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
                 />
               </div>
 
+              {/* Allergen size */}
+              <div className="flex items-center gap-2">
+                <Label className="text-xs w-24 shrink-0">Icon / Text Size</Label>
+                <input
+                  type="range"
+                  min={6}
+                  max={22}
+                  value={config.allergenSize ?? 9}
+                  onChange={(e) => onChange({ allergenSize: Number(e.target.value) })}
+                  className="flex-1"
+                />
+                <span className="text-xs text-gray-500 w-8 text-right">{config.allergenSize ?? 9}px</span>
+              </div>
+
+              {/* Allergen color */}
+              <div className="flex items-center gap-2">
+                <Label className="text-xs w-24 shrink-0">Badge / Text Color</Label>
+                <input
+                  type="color"
+                  value={config.allergenColor ?? "#e65100"}
+                  onChange={(e) => onChange({ allergenColor: e.target.value })}
+                  className="w-9 h-9 rounded border border-gray-200 cursor-pointer p-0.5"
+                />
+                <span className="text-xs text-gray-400">Applies to badges and text style</span>
+              </div>
+
               <p className="text-xs text-gray-400">
                 Emoji / Badge / Custom icon appear inline (same row as price). Text appears below the item name.
                 Add allergens to the &ldquo;Allergens&rdquo; column in Excel (e.g. &ldquo;gluten, dairy&rdquo;).

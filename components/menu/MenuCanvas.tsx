@@ -139,27 +139,29 @@ function drawAllergens(
   y: number,
   maxWidth: number,
   rs: number,
-  style: string
+  style: string,
+  sizePt: number,
+  color: string
 ) {
   const allergens = allergensStr.split(/[,;]/).map((a) => a.trim().toLowerCase()).filter(Boolean);
   if (!allergens.length) return;
 
+  const sz = sizePt * rs;
   ctx.save();
   if (style === "emoji") {
-    ctx.font = `${9 * rs}px serif`;
+    ctx.font = `${sz}px serif`;
     ctx.textBaseline = "alphabetic";
     let cx = x;
     for (const a of allergens) {
       const emoji = ALLERGEN_EMOJI[a] ?? "⚠️";
       ctx.fillText(emoji, cx, y);
-      cx += 13 * rs;
+      cx += (sz + 4 * rs);
       if (cx > x + maxWidth) break;
     }
   } else if (style === "symbol") {
-    const sz = 9 * rs;
     let cx = x;
     for (const a of allergens) {
-      ctx.fillStyle = "#e65100";
+      ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(cx + sz / 2, y - sz / 2, sz / 2, 0, Math.PI * 2);
       ctx.fill();
@@ -175,8 +177,8 @@ function drawAllergens(
     ctx.textBaseline = "alphabetic";
   } else {
     // text
-    ctx.font = `${8 * rs}px sans-serif`;
-    ctx.fillStyle = "#e65100";
+    ctx.font = `${sz}px sans-serif`;
+    ctx.fillStyle = color;
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
     const label = `Contains: ${allergens.join(", ")}`;
@@ -320,7 +322,9 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
     // Allergen inline area width (reserved on the right for emoji/symbol/custom icons)
     const allergenStyle = config.allergenDisplayStyle || "text";
     const inlineAllergen = config.showAllergens && allergenStyle !== "text";
-    const allergenAreaW = inlineAllergen ? nameFontSize * 3.5 : 0;
+    const allergenSz = (config.allergenSize ?? 9) * rs;
+    const allergenColor = config.allergenColor ?? "#e65100";
+    const allergenAreaW = inlineAllergen ? allergenSz * 3.5 : 0;
 
     const drawColumn = (secs: MenuSection[], startX: number, maxWidth: number) => {
       let y = padY;
@@ -398,33 +402,31 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
             const allergenX = startX + maxWidth; // right-align to full col edge
             const allergenY = y;
             if (allergenStyle === "custom" && allergenCustomImgRef.current) {
-              const aSz = nameFontSize * 0.95;
               ctx.drawImage(allergenCustomImgRef.current,
-                allergenX - aSz, allergenY - aSz * 0.85, aSz, aSz);
+                allergenX - allergenSz, allergenY - allergenSz * 0.85, allergenSz, allergenSz);
             } else if (allergenStyle === "emoji") {
               const allergens = item.allergens.split(/[,;]/).map((a) => a.trim().toLowerCase()).filter(Boolean);
               const emojis = allergens.slice(0, 3).map((a) => ALLERGEN_EMOJI[a] ?? "⚠️").join(" ");
               ctx.save();
-              ctx.font = `${nameFontSize * 0.75}px serif`;
+              ctx.font = `${allergenSz}px serif`;
               ctx.textAlign = "right";
               ctx.textBaseline = "alphabetic";
               ctx.fillText(emojis, allergenX, allergenY);
               ctx.restore();
             } else if (allergenStyle === "symbol") {
               const allergens = item.allergens.split(/[,;]/).map((a) => a.trim().toLowerCase()).filter(Boolean);
-              const sz = nameFontSize * 0.75;
-              let ax = allergenX - sz;
+              let ax = allergenX - allergenSz;
               for (const a of allergens.slice(0, 3).reverse()) {
-                ctx.fillStyle = "#e65100";
+                ctx.fillStyle = allergenColor;
                 ctx.beginPath();
-                ctx.arc(ax - sz / 2, allergenY - sz * 0.6, sz / 2, 0, Math.PI * 2);
+                ctx.arc(ax - allergenSz / 2, allergenY - allergenSz * 0.6, allergenSz / 2, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.fillStyle = "#fff";
-                ctx.font = `bold ${sz * 0.62}px sans-serif`;
+                ctx.font = `bold ${allergenSz * 0.62}px sans-serif`;
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
-                ctx.fillText(a[0].toUpperCase(), ax - sz / 2, allergenY - sz * 0.6);
-                ax -= sz + 2 * rs;
+                ctx.fillText(a[0].toUpperCase(), ax - allergenSz / 2, allergenY - allergenSz * 0.6);
+                ax -= allergenSz + 2 * rs;
               }
               ctx.textAlign = "left";
               ctx.textBaseline = "alphabetic";
@@ -456,8 +458,9 @@ const MenuCanvas = forwardRef<MenuCanvasHandle, MenuCanvasProps>(function MenuCa
 
           // Text-mode allergens shown below item (only when style is "text")
           if (config.showAllergens && item.allergens && allergenStyle === "text") {
-            drawAllergens(ctx, item.allergens, textX, y, maxWidth - iconGap, rs, "text");
-            y += descFontSize * 1.5;
+            drawAllergens(ctx, item.allergens, textX, y, maxWidth - iconGap, rs, "text",
+              config.allergenSize ?? 9, config.allergenColor ?? "#e65100");
+            y += allergenSz * 1.5;
           }
 
           if (config.showSpiceLevel && item.spiceLevel) {

@@ -83,6 +83,8 @@ export interface MenuConfig {
   showAllergens: boolean;
   allergenDisplayStyle: AllergenDisplayStyle;
   allergenIconCustom?: string; // base64 custom allergen icon
+  allergenSize: number;   // font/icon size in canvas points
+  allergenColor: string;  // badge/text color
   // Spacing
   spacingAfterHeading: number; // extra px after category heading
   itemSpacing: number;         // extra px between items
