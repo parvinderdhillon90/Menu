@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useRef, useCallback, useState } from "react";
-import { Upload } from "lucide-react";
+import React, { useRef, useCallback, useState, useEffect } from "react";
+import { Upload, ChevronDown } from "lucide-react";
 import { MenuConfig, VegIconStyle, NonVegIconStyle, IconPlacement, AllergenDisplayStyle, AllergenPlacement } from "@/types/menu";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -143,6 +143,96 @@ const NON_VEG_ICON_OPTIONS: { value: NonVegIconStyle; label: string; preview: Re
   },
 ];
 
+// Custom font picker dropdown — shows all fonts with built-in search
+function FontSelector({
+  value,
+  fonts,
+  onChange,
+}: {
+  value: string;
+  fonts: string[];
+  onChange: (font: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    searchRef.current?.focus();
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const filtered = search.trim()
+    ? fonts.filter((f) => f.toLowerCase().includes(search.toLowerCase()))
+    : fonts;
+
+  return (
+    <div ref={containerRef} className="relative flex-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full h-8 text-xs border border-gray-300 rounded-md px-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 flex items-center justify-between gap-1"
+        style={{ fontFamily: value }}
+      >
+        <span className="truncate">{value}</span>
+        <ChevronDown size={12} className="shrink-0 text-gray-400" />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden min-w-[220px]">
+          <div className="p-2 border-b border-gray-100">
+            <input
+              ref={searchRef}
+              type="text"
+              placeholder="Search fonts…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-indigo-400"
+            />
+          </div>
+          <div className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 px-3 py-4 text-center">No fonts match &ldquo;{search}&rdquo;</p>
+            ) : (
+              filtered.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => {
+                    onChange(f);
+                    loadGoogleFont(f);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  className={cn(
+                    "w-full text-left px-3 py-1.5 text-xs transition-colors hover:bg-indigo-50",
+                    f === value ? "bg-indigo-50 text-indigo-700 font-semibold" : "text-gray-700"
+                  )}
+                  style={{ fontFamily: f }}
+                >
+                  {f}
+                </button>
+              ))
+            )}
+          </div>
+          <div className="px-3 py-1.5 border-t border-gray-100 text-[10px] text-gray-400">
+            {filtered.length} font{filtered.length !== 1 ? "s" : ""}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Slider + typeable number input (Photoshop-style)
 function SliderInput({
   label,
@@ -210,7 +300,6 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
   const patchFontSizes = (patch: Partial<MenuConfig["fontSizes"]>) =>
     onChange({ fontSizes: { ...(config.fontSizes ?? { category: 18, itemName: 13, description: 10, price: 13 }), ...patch } });
 
-  const [fontSearch, setFontSearch] = useState("");
   const vegIconFileRef = useRef<HTMLInputElement>(null);
   const nonVegIconFileRef = useRef<HTMLInputElement>(null);
   const allergenIconFileRef = useRef<HTMLInputElement>(null);
@@ -331,13 +420,6 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
           </button>
           <input ref={customFontFileRef} type="file" accept=".ttf,.otf,.woff,.woff2" className="hidden" onChange={handleCustomFontUpload} />
         </div>
-        {/* Search filter */}
-        <Input
-          value={fontSearch}
-          onChange={(e) => setFontSearch(e.target.value)}
-          placeholder="Search fonts…"
-          className="mb-2 h-7 text-xs"
-        />
         <div className="space-y-2">
           {([
             { label: "Category", key: "category" as const },
@@ -349,28 +431,14 @@ export default function StylePanel({ config, onChange }: StylePanelProps) {
               ...ALL_FONTS,
               ...(config.customFonts?.map((f) => f.name) ?? []),
             ];
-            const filtered = fontSearch.trim()
-              ? allOptions.filter((f) => f.toLowerCase().includes(fontSearch.toLowerCase()))
-              : allOptions;
-            const listId = `font-list-${key}`;
             return (
               <div key={key} className="flex items-center gap-2">
                 <Label className="text-xs w-24 shrink-0">{label}</Label>
-                <div className="flex-1 relative">
-                  <input
-                    list={listId}
-                    value={config.fonts[key]}
-                    onChange={(e) => {
-                      patchFonts({ [key]: e.target.value });
-                      loadGoogleFont(e.target.value);
-                    }}
-                    className="w-full h-8 text-xs border border-gray-300 rounded-md px-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    style={{ fontFamily: config.fonts[key] }}
-                  />
-                  <datalist id={listId}>
-                    {filtered.map((f) => <option key={f} value={f} />)}
-                  </datalist>
-                </div>
+                <FontSelector
+                  value={config.fonts[key]}
+                  fonts={allOptions}
+                  onChange={(f) => patchFonts({ [key]: f })}
+                />
               </div>
             );
           })}
